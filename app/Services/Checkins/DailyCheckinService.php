@@ -145,11 +145,15 @@ Return only valid JSON and use this exact shape:
 }
 Rules:
 - readiness_score must be integer from 0 to 100.
-- Keep message short and empathetic.
-- Provide 3 to 5 muscle-group focus blocks, not specific exercise names.
+- Keep message short, empathetic, and actionable.
+- planned must reflect the intended session from the user's weekly plan or custom routine.
+- adjusted must explain the adaptation in one clear line.
+- workout_json.exercises must contain 3 to 5 focus blocks centered on muscle groups or movement patterns, not a random exercise list.
+- nutrition_tip must be specific and practical, using food or hydration advice that fits the day's training load.
 - Adapt the recommendation to the user profile, current readiness drivers, and the planned workout.
 - Respect workout_mode: if custom, keep the user's training identity intact while adjusting intensity.
 - Use sports background and custom routine clues to make the output feel personal.
+- Use a lower readiness score when sleep is short, stress is high, or soreness is high; reward good recovery when all three are favorable.
 PROMPT;
 
         $userPrompt = implode("\n", [
@@ -161,7 +165,7 @@ PROMPT;
                 (int) $dailyLog->soreness,
             ),
             'Planned workout today: ' . $plannedWorkout,
-            'Return a short empathetic recommendation with a readiness score, planned vs adjusted text, a structured workout_json, and a nutrition tip.',
+            'Return a concise recommendation tailored to the user profile, with planned vs adjusted text, structured focus blocks, and a nutrition tip that feels realistic for the current state.',
         ]);
 
         return $this->openAiClient->chatJson($systemPrompt, $userPrompt);
@@ -184,10 +188,59 @@ PROMPT;
             'message' => $message,
             'planned' => (string) ($payload['planned'] ?? $plannedWorkout),
             'adjusted' => (string) ($payload['adjusted'] ?? $fallback['adjusted']),
-            'workout_json' => $workout,
+            'workout_json' => [
+                'title' => is_string($workout['title'] ?? null) && trim($workout['title']) !== ''
+                    ? $workout['title']
+                    : 'Adaptive training focus',
+                'summary' => is_string($workout['summary'] ?? null) && trim($workout['summary']) !== ''
+                    ? $workout['summary']
+                    : 'Training adjusted to your current recovery state.',
+                'exercises' => $this->normalizeFocusBlocks($workout['exercises'] ?? $fallback['workout_json']['exercises']),
+            ],
             'nutrition_tip' => (string) ($payload['nutrition_tip'] ?? $fallback['nutrition_tip']),
             'daily_log_id' => $dailyLog->id,
         ];
+    }
+
+    private function normalizeFocusBlocks(mixed $exercises): array
+    {
+        if (!is_array($exercises) || $exercises === []) {
+            return [
+                ['name' => 'Upper-body push emphasis', 'sets' => 3, 'reps' => '8-10', 'rest' => '60s', 'notes' => 'Controlled tempo'],
+                ['name' => 'Upper-back and scapular stability', 'sets' => 3, 'reps' => '10-12', 'rest' => '45s', 'notes' => 'Focus on posture'],
+                ['name' => 'Core and mobility reset', 'sets' => 2, 'reps' => '30-45s', 'rest' => '30s', 'notes' => 'Stay smooth'],
+            ];
+        }
+
+        $normalized = [];
+
+        foreach ($exercises as $exercise) {
+            if (is_string($exercise)) {
+                $normalized[] = [
+                    'name' => $exercise,
+                    'sets' => 3,
+                    'reps' => '8-12',
+                    'rest' => '60s',
+                    'notes' => '',
+                ];
+
+                continue;
+            }
+
+            if (!is_array($exercise) || !is_string($exercise['name'] ?? null) || trim($exercise['name']) === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'name' => $exercise['name'],
+                'sets' => isset($exercise['sets']) ? (int) $exercise['sets'] : 3,
+                'reps' => is_string($exercise['reps'] ?? null) ? $exercise['reps'] : '8-12',
+                'rest' => is_string($exercise['rest'] ?? null) ? $exercise['rest'] : '60s',
+                'notes' => is_string($exercise['notes'] ?? null) ? $exercise['notes'] : '',
+            ];
+        }
+
+        return array_slice($normalized !== [] ? $normalized : $this->normalizeFocusBlocks([]), 0, 5);
     }
 
     private function calculateReadinessScore(DailyLog $dailyLog): int

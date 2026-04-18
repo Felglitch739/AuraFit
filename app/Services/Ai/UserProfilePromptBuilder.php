@@ -8,11 +8,18 @@ class UserProfilePromptBuilder
 {
     public function build(User $user): string
     {
+        $goal = $this->normalizeGoal($user->goal);
+        $fitnessGoal = $user->fitness_goal ?? 'unspecified';
+        $activityLevel = $user->activity_level ?? 'unspecified';
+        $workoutMode = $user->workout_mode ?? 'generate';
+        $trainingStyle = $this->deriveTrainingStyle($goal, $fitnessGoal, $workoutMode);
+
         $profile = [
-            'goal' => $user->goal ?? 'maintain',
-            'activity_level' => $user->activity_level ?? 'unspecified',
-            'fitness_goal' => $user->fitness_goal ?? 'unspecified',
-            'workout_mode' => $user->workout_mode ?? 'generate',
+            'goal' => $goal,
+            'activity_level' => $activityLevel,
+            'fitness_goal' => $fitnessGoal,
+            'workout_mode' => $workoutMode,
+            'training_style' => $trainingStyle,
             'age' => $user->age ?? 'unspecified',
             'weight_kg' => $user->weight_kg ?? 'unspecified',
             'height_cm' => $user->height_cm ?? 'unspecified',
@@ -23,19 +30,52 @@ class UserProfilePromptBuilder
         ];
 
         return implode("\n", [
-            'User profile:',
-            '- Goal: ' . $profile['goal'],
-            '- Activity level: ' . $profile['activity_level'],
+            'User profile context:',
+            '- Primary goal: ' . $profile['goal'],
             '- Fitness goal: ' . $profile['fitness_goal'],
+            '- Activity level: ' . $profile['activity_level'],
             '- Workout mode: ' . $profile['workout_mode'],
+            '- Training style: ' . $profile['training_style'],
             '- Age: ' . $profile['age'],
             '- Weight (kg): ' . $profile['weight_kg'],
             '- Height (cm): ' . $profile['height_cm'],
             '- Sports practiced: ' . $profile['sports_practiced'],
             '- Other sports: ' . $profile['sports_other'],
             '- Onboarding completed: ' . $profile['onboarding_completed'],
-            '- Custom routine: ' . $profile['custom_routine'],
+            '- Custom routine / weekly preference: ' . $profile['custom_routine'],
         ]);
+    }
+
+    private function normalizeGoal(?string $goal): string
+    {
+        if (is_string($goal) && in_array($goal, ['bulk', 'cut', 'maintain'], true)) {
+            return $goal;
+        }
+
+        return 'maintain';
+    }
+
+    private function deriveTrainingStyle(string $goal, string $fitnessGoal, string $workoutMode): string
+    {
+        $style = match ($goal) {
+            'bulk' => 'hypertrophy-focused progression with compound lifts',
+            'cut' => 'fat-loss friendly training with conditioning and volume control',
+            default => 'balanced maintenance with recovery-aware volume',
+        };
+
+        if ($workoutMode === 'custom') {
+            $style .= '; preserve user-defined structure before adding adaptations';
+        }
+
+        if ($fitnessGoal === 'recomposition') {
+            $style .= '; bias toward balanced strength and moderate conditioning';
+        }
+
+        if ($fitnessGoal === 'strength') {
+            $style .= '; emphasize heavy compounds and longer rest periods';
+        }
+
+        return $style;
     }
 
     private function formatSportsPracticed(mixed $sportsPracticed): string
