@@ -72,4 +72,9 @@ class User extends Authenticatable
     {
         return $this->hasOne(NutritionPlan::class);
     }
+
+    public function foodEntries(): HasMany
+    {
+        return $this->hasMany(FoodEntry::class);
+    }
 }

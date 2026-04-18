@@ -90,6 +90,22 @@ export type DashboardViewModel = {
             detail: string;
         }>;
     };
+    macroSummary?: {
+        entriesCount: number;
+        latestMealName?: string | null;
+        totals: {
+            calories: number;
+            proteinGrams: number;
+            carbsGrams: number;
+            fatGrams: number;
+        };
+        targets: {
+            calories: number;
+            proteinGrams: number;
+            carbsGrams: number;
+            fatGrams: number;
+        };
+    };
 };
 
 export type NutritionViewModel = {
@@ -102,4 +118,38 @@ export type NutritionViewModel = {
         goal: FitnessGoal;
         use_mock: boolean;
     };
+};
+
+export type ChatContextViewModel = {
+    userName: string;
+    goal: string;
+    fitnessGoal: string;
+    activityLevel: string;
+    today: {
+        day: string;
+        plannedSession: string;
+        adjustedSession?: string | null;
+        readinessScore?: number | null;
+        sleepHours?: number | null;
+        stressLevel?: number | null;
+        soreness?: number | null;
+    };
+    nutrition: {
+        targetCalories?: number | null;
+        hydrationLiters?: number | null;
+        proteinGrams?: number | null;
+        carbsGrams?: number | null;
+        fatGrams?: number | null;
+        nutritionTip?: string | null;
+    };
+    mentalWellbeing: {
+        coachingFocus: string;
+        recoveryReminder: string;
+    };
+};
+
+export type ChatReplyPayload = {
+    reply: string;
+    focusAreas: string[];
+    context: ChatContextViewModel;
 };

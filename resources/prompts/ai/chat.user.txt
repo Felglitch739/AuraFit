@@ -1,0 +1,8 @@
+:profile_context
+Current contextual snapshot (JSON):
+:context_snapshot
+Recent conversation:
+:conversation_history
+Latest user message:
+:user_message
+Provide a caring coach response with practical next steps for training, nutrition, and mental wellbeing while staying concise.

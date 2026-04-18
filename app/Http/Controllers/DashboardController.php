@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\NutritionPlanRequest;
+use App\Models\FoodEntry;
 use App\Services\Checkins\DailyCheckinService;
 use App\Services\Nutrition\NutritionPlanService;
 use Carbon\Carbon;
@@ -28,6 +29,29 @@ class DashboardController extends Controller
         $nutritionPlan = $nutritionPlanService->getForUser($user);
         $nutritionPlanData = $nutritionPlanService->toViewModel($nutritionPlan);
         $weeklyPlanDays = is_array($weeklyPlan['days'] ?? null) ? $weeklyPlan['days'] : [];
+        $today = Carbon::today()->toDateString();
+
+        $foodEntriesToday = FoodEntry::query()
+            ->where('user_id', $user->id)
+            ->whereDate('logged_on', $today)
+            ->get();
+
+        $macroSummary = [
+            'entriesCount' => $foodEntriesToday->count(),
+            'latestMealName' => $foodEntriesToday->sortByDesc('created_at')->first()?->meal_name,
+            'totals' => [
+                'calories' => (int) $foodEntriesToday->sum('calories'),
+                'proteinGrams' => (int) $foodEntriesToday->sum('protein_grams'),
+                'carbsGrams' => (int) $foodEntriesToday->sum('carbs_grams'),
+                'fatGrams' => (int) $foodEntriesToday->sum('fat_grams'),
+            ],
+            'targets' => [
+                'calories' => (int) ($nutritionPlanData['targetCalories'] ?? 2200),
+                'proteinGrams' => (int) ($nutritionPlanData['macroTargets']['proteinGrams'] ?? 140),
+                'carbsGrams' => (int) ($nutritionPlanData['macroTargets']['carbsGrams'] ?? 250),
+                'fatGrams' => (int) ($nutritionPlanData['macroTargets']['fatGrams'] ?? 70),
+            ],
+        ];
 
         $dashboardSummary = [
             'headline' => $latestRecommendation
@@ -66,6 +90,7 @@ class DashboardController extends Controller
             'dailyCheckIn' => $dailyCheckinService->toDailyCheckInValues($latestDailyLog),
             'recommendation' => $dailyCheckinService->toDashboardRecommendation($latestRecommendation),
             'nutritionPlan' => $nutritionPlanData,
+            'macroSummary' => $macroSummary,
             'currentDayLabel' => Carbon::now()->englishDayOfWeek,
             'dashboardSummary' => $dashboardSummary,
         ]);

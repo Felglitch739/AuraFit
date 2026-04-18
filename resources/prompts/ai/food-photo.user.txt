@@ -1,0 +1,3 @@
+Analyze the attached meal photo.
+Optional user label for this meal: :meal_label
+Infer what food is shown and estimate the key nutrition facts.

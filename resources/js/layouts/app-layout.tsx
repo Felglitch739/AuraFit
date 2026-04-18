@@ -1,6 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import {
     Activity,
+    BarChart3,
     MessageCircle,
     PieChart,
     LayoutDashboard,
@@ -21,42 +22,47 @@ export default function AppLayout({
 }) {
     const { isCurrentUrl } = useCurrentUrl();
 
-    const desktopNavItems = [
+    const desktopPrimaryNavItems = [
         {
             href: '/dashboard',
             label: 'Dashboard',
             icon: LayoutDashboard,
-            soon: false,
         },
         {
             href: '/check-in',
             label: 'Check-in',
             icon: Activity,
-            soon: false,
         },
         {
             href: '/nutrition',
             label: 'Nutrition',
             icon: Utensils,
-            soon: false,
         },
+    ] as const;
+
+    const desktopTrackingNavItems = [
+        {
+            href: '/macros',
+            label: 'Macros',
+            icon: PieChart,
+        },
+        {
+            href: '/progress',
+            label: 'Progress',
+            icon: BarChart3,
+        },
+    ] as const;
+
+    const desktopSupportNavItems = [
         {
             href: '/onboarding',
             label: 'Setup',
             icon: SlidersHorizontal,
-            soon: false,
         },
         {
-            href: null,
-            label: 'Macros',
-            icon: PieChart,
-            soon: true,
-        },
-        {
-            href: null,
+            href: '/chat',
             label: 'Chat',
             icon: MessageCircle,
-            soon: true,
         },
     ] as const;
 
@@ -65,8 +71,8 @@ export default function AppLayout({
             key: 'macros',
             label: 'Macros',
             icon: PieChart,
-            href: null,
-            soon: true,
+            href: '/macros',
+            soon: false,
         },
         {
             key: 'dashboard',
@@ -79,8 +85,8 @@ export default function AppLayout({
             key: 'chat',
             label: 'Chat',
             icon: MessageCircle,
-            href: null,
-            soon: true,
+            href: '/chat',
+            soon: false,
         },
     ] as const;
 
@@ -92,26 +98,7 @@ export default function AppLayout({
             <nav className="glass-panel fixed inset-x-0 bottom-0 z-50 flex h-18 items-center justify-around border-t border-glass-border bg-glass-panel px-4 backdrop-blur-xl md:inset-y-0 md:right-auto md:left-0 md:h-screen md:w-24 md:flex-col md:justify-center md:gap-8 md:border-t-0 md:border-r">
                 {mobileNavItems.map((item) => {
                     const Icon = item.icon;
-                    const active = item.href ? isCurrentUrl(item.href) : false;
-
-                    if (!item.href) {
-                        return (
-                            <div
-                                key={item.key}
-                                className="flex flex-col items-center gap-1 text-muted-foreground md:hidden"
-                            >
-                                <div className="relative">
-                                    <Icon className="h-6 w-6 opacity-70" />
-                                    <span className="absolute -top-2 -right-6 rounded-full border border-neon-blue/40 bg-neon-blue/10 px-1.5 py-0.5 text-[9px] font-semibold text-neon-blue uppercase">
-                                        Soon
-                                    </span>
-                                </div>
-                                <span className="text-[10px] uppercase">
-                                    {item.label}
-                                </span>
-                            </div>
-                        );
-                    }
+                    const active = isCurrentUrl(item.href);
 
                     return (
                         <Link
@@ -139,52 +126,101 @@ export default function AppLayout({
                     );
                 })}
 
-                {desktopNavItems.map((item) => {
-                    const Icon = item.icon;
-                    const active = item.href ? isCurrentUrl(item.href) : false;
+                <div className="hidden md:flex md:flex-col md:items-center md:gap-7">
+                    {desktopPrimaryNavItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = isCurrentUrl(item.href);
 
-                    if (!item.href) {
                         return (
-                            <div
+                            <Link
                                 key={item.label}
-                                className="group relative hidden flex-col items-center gap-1 text-muted-foreground md:flex"
+                                href={item.href}
+                                className={[
+                                    'group flex flex-col items-center gap-1 transition',
+                                    active
+                                        ? 'text-neon-pink'
+                                        : 'text-muted-foreground hover:text-neon-pink',
+                                ].join(' ')}
                             >
-                                <Icon className="h-6 w-6 opacity-70" />
+                                <Icon
+                                    className={[
+                                        'h-6 w-6 transition',
+                                        active
+                                            ? 'drop-shadow-[0_0_8px_var(--color-neon-pink)]'
+                                            : 'group-hover:drop-shadow-[0_0_8px_var(--color-neon-pink)]',
+                                    ].join(' ')}
+                                />
                                 <span className="text-[10px] tracking-[0.22em] uppercase">
                                     {item.label}
                                 </span>
-                                <span className="absolute -top-2 -right-6 rounded-full border border-neon-blue/40 bg-neon-blue/10 px-1.5 py-0.5 text-[9px] font-semibold text-neon-blue uppercase">
-                                    Soon
-                                </span>
-                            </div>
+                            </Link>
                         );
-                    }
+                    })}
 
-                    return (
-                        <Link
-                            key={item.label}
-                            href={item.href}
-                            className={[
-                                'group hidden flex-col items-center gap-1 transition md:flex',
-                                active
-                                    ? 'text-neon-pink'
-                                    : 'text-muted-foreground hover:text-neon-pink',
-                            ].join(' ')}
-                        >
-                            <Icon
+                    <div className="h-px w-10 bg-glass-border" />
+
+                    {desktopTrackingNavItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = isCurrentUrl(item.href);
+
+                        return (
+                            <Link
+                                key={item.label}
+                                href={item.href}
                                 className={[
-                                    'h-6 w-6 transition',
+                                    'group flex flex-col items-center gap-1 transition',
                                     active
-                                        ? 'drop-shadow-[0_0_8px_var(--color-neon-pink)]'
-                                        : 'group-hover:drop-shadow-[0_0_8px_var(--color-neon-pink)]',
+                                        ? 'text-neon-pink'
+                                        : 'text-muted-foreground hover:text-neon-pink',
                                 ].join(' ')}
-                            />
-                            <span className="text-[10px] tracking-[0.22em] uppercase">
-                                {item.label}
-                            </span>
-                        </Link>
-                    );
-                })}
+                            >
+                                <Icon
+                                    className={[
+                                        'h-6 w-6 transition',
+                                        active
+                                            ? 'drop-shadow-[0_0_8px_var(--color-neon-pink)]'
+                                            : 'group-hover:drop-shadow-[0_0_8px_var(--color-neon-pink)]',
+                                    ].join(' ')}
+                                />
+                                <span className="text-[10px] tracking-[0.22em] uppercase">
+                                    {item.label}
+                                </span>
+                            </Link>
+                        );
+                    })}
+
+                    <div className="h-px w-10 bg-glass-border" />
+
+                    {desktopSupportNavItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = isCurrentUrl(item.href);
+
+                        return (
+                            <Link
+                                key={item.label}
+                                href={item.href}
+                                className={[
+                                    'group flex flex-col items-center gap-1 transition',
+                                    active
+                                        ? 'text-neon-pink'
+                                        : 'text-muted-foreground hover:text-neon-pink',
+                                ].join(' ')}
+                            >
+                                <Icon
+                                    className={[
+                                        'h-6 w-6 transition',
+                                        active
+                                            ? 'drop-shadow-[0_0_8px_var(--color-neon-pink)]'
+                                            : 'group-hover:drop-shadow-[0_0_8px_var(--color-neon-pink)]',
+                                    ].join(' ')}
+                                />
+                                <span className="text-[10px] tracking-[0.22em] uppercase">
+                                    {item.label}
+                                </span>
+                            </Link>
+                        );
+                    })}
+                </div>
             </nav>
 
             <div className="relative z-10 min-h-screen pb-24 md:pb-0 md:pl-24">
