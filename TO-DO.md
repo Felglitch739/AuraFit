@@ -113,7 +113,7 @@
 
 ---
 
-- [ ] ## Add Goal Field to Users Table
+- [x] ## Add Goal Field to Users Table
 
     **👨‍💻 Dev:** Eduardo Lorenzo
     **🎯 Goal:** Define user fitness objective
@@ -126,7 +126,7 @@
 
 ---
 
-- [ ] ## Define Eloquent Relationships
+- [x] ## Define Eloquent Relationships
 
     **👨‍💻 Dev:** Eduardo Lorenzo
     **🎯 Goal:** Connect models logically
