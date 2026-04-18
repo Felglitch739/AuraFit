@@ -11,7 +11,7 @@
 
 ## ⚙️ Environment & Base Setup
 
-- [ ] ## Initialize Laravel + Inertia + React (TypeScript)
+- [x] ## Initialize Laravel + Inertia + React (TypeScript)
 
     **👨‍💻 Dev:** Eduardo Lorenzo
     **🎯 Goal:** Create the base project with modern stack ready to build on.
@@ -26,7 +26,7 @@
 
 ---
 
-- [ ] ## Install TailwindCSS + Enable Dark Mode
+- [x] ## Install TailwindCSS + Enable Dark Mode
 
     **👨‍💻 Dev:** Felix Martinez
     **🎯 Goal:** Establish UI foundation with dark theme by default
@@ -40,7 +40,7 @@
 
 ---
 
-- [ ] ## Setup Authentication (Laravel Breeze)
+- [x] ## Setup Authentication (Laravel Breeze)
 
     **👨‍💻 Dev:** Eduardo Lorenzo
     **🎯 Goal:** Enable user login and registration
@@ -72,7 +72,7 @@
 
 ## 🗄️ Data Structure
 
-- [ ] ## Create Weekly Plans Migration
+- [x] ## Create Weekly Plans Migration
 
     **👨‍💻 Dev:** Eduardo Lorenzo
     **🎯 Goal:** Store weekly workout structure
@@ -85,7 +85,7 @@
 
 ---
 
-- [ ] ## Create Daily Logs Migration
+- [x] ## Create Daily Logs Migration
 
     **👨‍💻 Dev:** Eduardo Lorenzo
     **🎯 Goal:** Store daily check-in data
@@ -98,7 +98,7 @@
 
 ---
 
-- [ ] ## Create Recommendations Migration
+- [x] ## Create Recommendations Migration
 
     **👨‍💻 Dev:** Eduardo Lorenzo
     **🎯 Goal:** Store AI-generated responses
