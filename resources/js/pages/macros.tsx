@@ -8,6 +8,7 @@ import {
     Utensils,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import NutritionLoading from '@/components/fitness/NutritionLoading';
 
 type MacroAnalysis = {
     mealName: string;
@@ -51,6 +52,18 @@ export default function MacrosPage({
     });
 
     const saveForm = useForm({});
+
+    if (analyzeForm.processing) {
+        return (
+            <>
+                <Head title="Macro Counter" />
+
+                <div className="space-y-6">
+                    <NutritionLoading />
+                </div>
+            </>
+        );
+    }
 
     const submitAnalyze = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();

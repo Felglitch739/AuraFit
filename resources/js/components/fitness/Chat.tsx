@@ -1,6 +1,11 @@
+import { router } from '@inertiajs/react';
 import { Send, Sparkles, User } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import type { ChatContextViewModel, ChatReplyPayload } from '@/types/fitness';
+import type {
+    ChatContextViewModel,
+    ChatProposal,
+    ChatReplyPayload,
+} from '@/types/fitness';
 
 type Sender = 'user' | 'ai';
 
@@ -8,6 +13,8 @@ type ChatMessage = {
     id: string;
     text: string;
     sender: Sender;
+    proposal?: ChatProposal | null;
+    proposalStatus?: 'pending' | 'accepted' | 'rejected';
 };
 
 type ChatProps = {
@@ -23,9 +30,36 @@ function buildWelcomeMessage(context: ChatContextViewModel): ChatMessage {
     };
 }
 
+function formatProposalValue(value: unknown): string {
+    if (value === null || value === undefined) {
+        return '--';
+    }
+
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => formatProposalValue(item))
+            .filter((item) => item !== '--')
+            .join(', ');
+    }
+
+    if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+
+    return String(value);
+}
+
 export default function Chat({
     context,
-    replyEndpoint = '/chat/reply',
+    replyEndpoint = '/api/coach/chat',
 }: ChatProps) {
     const [messages, setMessages] = useState<ChatMessage[]>(() => [
         buildWelcomeMessage(context),
@@ -36,6 +70,10 @@ export default function Chat({
         useState<ChatContextViewModel>(context);
 
     const bottomRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        setChatContext(context);
+    }, [context]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,10 +98,105 @@ export default function Chat({
         return payload as Partial<ChatReplyPayload>;
     };
 
-    const sendMessage = async (
-        trimmedInput: string,
-        history: ChatMessage[],
+    const parseMessagesForRequest = (history: ChatMessage[]) =>
+        history.map((item) => ({
+            id: item.id,
+            sender: item.sender,
+            text: item.text,
+            proposal: item.proposal ?? null,
+            proposalStatus: item.proposalStatus ?? null,
+        }));
+
+    const buildProposalTitle = (proposal: ChatProposal) =>
+        proposal.type === 'nutrition'
+            ? 'Action Card: Nutrition Update'
+            : 'Action Card: Workout Update';
+
+    const buildProposalSummary = (proposal: ChatProposal) => {
+        const data = proposal.data ?? {};
+
+        if (proposal.type === 'nutrition') {
+            const calories = data.calories ?? data.targetCalories ?? data.kcal;
+            const protein = data.protein ?? data.proteinGrams;
+            const carbs = data.carbs ?? data.carbsGrams;
+            const fat = data.fat ?? data.fatGrams;
+
+            return [
+                calories !== undefined && calories !== null
+                    ? `${calories} kcal`
+                    : null,
+                protein !== undefined && protein !== null
+                    ? `${protein}g protein`
+                    : null,
+                carbs !== undefined && carbs !== null
+                    ? `${carbs}g carbs`
+                    : null,
+                fat !== undefined && fat !== null ? `${fat}g fat` : null,
+            ]
+                .filter((item): item is string => Boolean(item))
+                .join(' · ');
+        }
+
+        const focus =
+            data.focus ??
+            data.title ??
+            data.day ??
+            data.session ??
+            'Recovery-first workout';
+        const duration = data.durationMinutes ?? data.duration ?? data.minutes;
+        const intensity = data.intensity ?? data.load ?? data.volume;
+
+        return [
+            formatProposalValue(focus),
+            duration !== undefined && duration !== null
+                ? `${duration} min`
+                : null,
+            intensity !== undefined && intensity !== null
+                ? `Intensity: ${formatProposalValue(intensity)}`
+                : null,
+        ]
+            .filter((item): item is string => Boolean(item))
+            .join(' · ');
+    };
+
+    const buildProposalDetails = (proposal: ChatProposal) => {
+        const data = proposal.data ?? {};
+        const entries = Object.entries(data)
+            .filter(([key, value]) => {
+                if (value === null || value === undefined || value === '') {
+                    return false;
+                }
+
+                return !['summary', 'message', 'notes'].includes(key);
+            })
+            .slice(0, 4);
+
+        return entries.map(([key, value]) => ({
+            label: key
+                .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .replace(/_/g, ' ')
+                .replace(/^./, (char) => char.toUpperCase()),
+            value: formatProposalValue(value),
+        }));
+    };
+
+    const updateMessageProposalState = (
+        messageId: string,
+        proposalState: 'accepted' | 'rejected',
     ) => {
+        setMessages((previous) =>
+            previous.map((message) =>
+                message.id === messageId
+                    ? {
+                          ...message,
+                          proposalStatus: proposalState,
+                      }
+                    : message,
+            ),
+        );
+    };
+
+    const sendMessage = async (history: ChatMessage[]) => {
         const csrf = document
             .querySelector('meta[name="csrf-token"]')
             ?.getAttribute('content');
@@ -77,11 +210,7 @@ export default function Chat({
                 ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
             },
             body: JSON.stringify({
-                message: trimmedInput,
-                history: history.slice(-8).map((item) => ({
-                    sender: item.sender,
-                    text: item.text,
-                })),
+                messages: parseMessagesForRequest(history),
             }),
         });
 
@@ -92,15 +221,92 @@ export default function Chat({
         const payload = parseReplyPayload(await response.json());
 
         const replyText =
-            typeof payload.reply === 'string' && payload.reply.trim() !== ''
-                ? payload.reply
-                : 'I am with you. Lets adjust todays load and protect your recovery while keeping your momentum.';
+            typeof payload.text === 'string' && payload.text.trim() !== ''
+                ? payload.text
+                : typeof payload.reply === 'string' &&
+                    payload.reply.trim() !== ''
+                  ? payload.reply
+                  : 'I am with you. Lets adjust todays load and protect your recovery while keeping your momentum.';
 
         if (payload.context) {
             setChatContext(payload.context);
         }
 
-        return replyText;
+        return {
+            replyText,
+            proposal: payload.proposal ?? null,
+        };
+    };
+
+    const handleAcceptProposal = async (
+        messageId: string,
+        proposal: ChatProposal,
+    ) => {
+        const csrf = document
+            .querySelector('meta[name="csrf-token"]')
+            ?.getAttribute('content');
+
+        try {
+            const response = await fetch('/api/plan/update', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+                },
+                body: JSON.stringify({
+                    proposal,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Could not apply proposal.');
+            }
+
+            const payload = parseReplyPayload(await response.json());
+
+            if (payload.context) {
+                setChatContext(payload.context);
+            }
+
+            updateMessageProposalState(messageId, 'accepted');
+
+            router.reload({
+                preserveState: true,
+            });
+
+            setMessages((previous) => [
+                ...previous,
+                {
+                    id: crypto.randomUUID(),
+                    sender: 'user',
+                    text: '✅ Cambio aceptado e integrado a mi plan',
+                },
+            ]);
+        } catch {
+            setMessages((previous) => [
+                ...previous,
+                {
+                    id: crypto.randomUUID(),
+                    sender: 'ai',
+                    text: 'No pude integrar el cambio en este momento. Tu plan anterior sigue intacto.',
+                },
+            ]);
+        }
+    };
+
+    const handleRejectProposal = (messageId: string) => {
+        updateMessageProposalState(messageId, 'rejected');
+
+        setMessages((previous) => [
+            ...previous,
+            {
+                id: crypto.randomUUID(),
+                sender: 'user',
+                text: 'No quiero aplicar ese cambio por ahora, sigo con mi plan actual.',
+            },
+        ]);
     };
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -125,11 +331,13 @@ export default function Chat({
         setIsTyping(true);
 
         try {
-            const replyText = await sendMessage(trimmedInput, nextMessages);
+            const { replyText, proposal } = await sendMessage(nextMessages);
             const aiReply: ChatMessage = {
                 id: crypto.randomUUID(),
                 text: replyText,
                 sender: 'ai',
+                proposal,
+                proposalStatus: proposal ? 'pending' : undefined,
             };
 
             setMessages((prev) => [...prev, aiReply]);
@@ -240,7 +448,96 @@ export default function Chat({
                                                 : 'border-neon-blue/30 bg-gray-900 text-gray-100',
                                         ].join(' ')}
                                     >
-                                        {message.text}
+                                        <p>{message.text}</p>
+
+                                        {!isUser && message.proposal ? (
+                                            <div className="mt-4 rounded-2xl border border-neon-blue/40 bg-[linear-gradient(180deg,rgba(59,130,246,0.14),rgba(255,255,255,0.04))] p-4 shadow-[0_0_28px_rgba(59,130,246,0.16)] backdrop-blur-xl">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-[11px] tracking-[0.26em] text-neon-blue uppercase">
+                                                            {buildProposalTitle(
+                                                                message.proposal,
+                                                            )}
+                                                        </p>
+                                                        <h4 className="mt-1 text-base font-semibold text-white">
+                                                            Change proposal
+                                                        </h4>
+                                                    </div>
+
+                                                    <span className="rounded-full border border-neon-blue/40 bg-neon-blue/10 px-2.5 py-1 text-[10px] font-semibold text-neon-blue uppercase">
+                                                        {message.proposalStatus ??
+                                                            'Ready'}
+                                                    </span>
+                                                </div>
+
+                                                <p className="mt-3 text-sm text-gray-100/90">
+                                                    {buildProposalSummary(
+                                                        message.proposal,
+                                                    )}
+                                                </p>
+
+                                                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                                                    {buildProposalDetails(
+                                                        message.proposal,
+                                                    ).map((detail) => (
+                                                        <div
+                                                            key={`${message.id}-${detail.label}`}
+                                                            className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                                                        >
+                                                            <p className="text-[10px] tracking-[0.22em] text-gray-400 uppercase">
+                                                                {detail.label}
+                                                            </p>
+                                                            <p className="mt-1 text-sm text-white/90">
+                                                                {detail.value}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {message.proposalStatus ===
+                                                'pending' ? (
+                                                    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleAcceptProposal(
+                                                                    message.id,
+                                                                    message.proposal as ChatProposal,
+                                                                )
+                                                            }
+                                                            className="inline-flex flex-1 items-center justify-center rounded-xl border border-neon-blue/40 bg-neon-blue/15 px-4 py-2 text-sm font-semibold text-neon-blue transition hover:bg-neon-blue/25"
+                                                        >
+                                                            Aceptar Cambio
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleRejectProposal(
+                                                                    message.id,
+                                                                )
+                                                            }
+                                                            className="inline-flex flex-1 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-gray-200 transition hover:bg-white/10"
+                                                        >
+                                                            Rechazar
+                                                        </button>
+                                                    </div>
+                                                ) : null}
+
+                                                {message.proposalStatus ===
+                                                'accepted' ? (
+                                                    <p className="mt-4 text-xs font-medium text-emerald-300">
+                                                        Proposal integrated.
+                                                    </p>
+                                                ) : null}
+
+                                                {message.proposalStatus ===
+                                                'rejected' ? (
+                                                    <p className="mt-4 text-xs font-medium text-gray-300">
+                                                        Proposal rejected.
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
                                     </div>
 
                                     {isUser ? (

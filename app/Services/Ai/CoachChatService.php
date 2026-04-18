@@ -16,33 +16,77 @@ class CoachChatService
     ) {
     }
 
-    public function respond(User $user, string $message, array $history = []): array
+    public function respondFromMessages(User $user, array $messages): array
     {
         $contextSnapshot = $this->buildContextSnapshot($user);
+        $normalizedMessages = $this->normalizeMessages($messages);
+        $latestUserMessage = $this->extractLatestUserMessage($normalizedMessages);
 
         try {
             $systemPrompt = $this->promptTemplateService->load('ai/chat.system.txt');
             $userPrompt = $this->promptTemplateService->render('ai/chat.user.txt', [
                 'profile_context' => $this->profilePromptBuilder->build($user),
                 'context_snapshot' => json_encode($contextSnapshot, JSON_UNESCAPED_SLASHES),
-                'conversation_history' => $this->formatConversationHistory($history),
-                'user_message' => trim($message),
+                'conversation_history' => $this->formatConversationHistory($normalizedMessages),
+                'user_message' => trim($latestUserMessage),
             ]);
 
             $payload = $this->openAiClient->chatJson($systemPrompt, $userPrompt);
 
             return [
-                'reply' => $this->extractReply($payload),
+                'text' => $this->extractReplyText($payload),
+                'proposal' => $this->extractProposal($payload),
                 'focusAreas' => $this->extractFocusAreas($payload),
                 'context' => $contextSnapshot,
             ];
         } catch (Throwable) {
             return [
-                'reply' => $this->fallbackReply($contextSnapshot),
+                'text' => $this->fallbackReply($contextSnapshot),
+                'proposal' => null,
                 'focusAreas' => $this->fallbackFocusAreas($contextSnapshot),
                 'context' => $contextSnapshot,
             ];
         }
+    }
+
+    private function normalizeMessages(array $messages): array
+    {
+        $normalized = [];
+
+        foreach ($messages as $message) {
+            if (!is_array($message)) {
+                continue;
+            }
+
+            $sender = $message['sender'] ?? null;
+            $text = $message['text'] ?? null;
+
+            if (!is_string($sender) || !in_array($sender, ['user', 'ai'], true)) {
+                continue;
+            }
+
+            if (!is_string($text) || trim($text) === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'sender' => $sender,
+                'text' => trim($text),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function extractLatestUserMessage(array $messages): string
+    {
+        for ($index = count($messages) - 1; $index >= 0; $index--) {
+            if (($messages[$index]['sender'] ?? null) === 'user' && is_string($messages[$index]['text'] ?? null)) {
+                return (string) $messages[$index]['text'];
+            }
+        }
+
+        return '';
     }
 
     public function buildContextSnapshot(User $user): array
@@ -53,8 +97,13 @@ class CoachChatService
 
         $weeklyPlan = $user->weeklyPlan?->plan_json;
         $nutritionPlan = $user->nutritionPlan?->nutrition_json;
+        $acceptedWorkout = is_array($weeklyPlan['planned_workout'] ?? null) ? $weeklyPlan['planned_workout'] : null;
+        $acceptedNutrition = is_array($weeklyPlan['planned_nutrition'] ?? null) ? $weeklyPlan['planned_nutrition'] : null;
 
         $dayFocus = $this->resolveDayFocus($weeklyPlan, $today);
+        $plannedSession = $this->resolvePlannedSession($acceptedWorkout, $recommendation, $dayFocus);
+        $nutritionTargetCalories = $this->resolveNutritionTargetCalories($acceptedNutrition, $nutritionPlan);
+        $nutritionTip = $this->resolveNutritionTip($acceptedNutrition, $nutritionPlan, $recommendation);
 
         return [
             'userName' => (string) ($user->name ?: 'Athlete'),
@@ -63,22 +112,22 @@ class CoachChatService
             'activityLevel' => (string) ($user->activity_level ?: 'unspecified'),
             'today' => [
                 'day' => $today,
-                'plannedSession' => (string) ($recommendation?->planned ?: $dayFocus),
-                'adjustedSession' => $recommendation?->adjusted,
+                'plannedSession' => $plannedSession,
+                'adjustedSession' => is_string($acceptedWorkout['adjusted'] ?? null) && trim($acceptedWorkout['adjusted']) !== ''
+                    ? $acceptedWorkout['adjusted']
+                    : $recommendation?->adjusted,
                 'readinessScore' => $recommendation?->readiness_score,
                 'sleepHours' => $dailyLog ? (float) $dailyLog->sleep_hours : null,
                 'stressLevel' => $dailyLog ? (int) $dailyLog->stress_level : null,
                 'soreness' => $dailyLog ? (int) $dailyLog->soreness : null,
             ],
             'nutrition' => [
-                'targetCalories' => is_numeric($nutritionPlan['targetCalories'] ?? null) ? (int) $nutritionPlan['targetCalories'] : null,
+                'targetCalories' => $nutritionTargetCalories,
                 'hydrationLiters' => is_numeric($nutritionPlan['hydrationLiters'] ?? null) ? (float) $nutritionPlan['hydrationLiters'] : null,
-                'proteinGrams' => is_numeric($nutritionPlan['macroTargets']['proteinGrams'] ?? null) ? (int) $nutritionPlan['macroTargets']['proteinGrams'] : null,
-                'carbsGrams' => is_numeric($nutritionPlan['macroTargets']['carbsGrams'] ?? null) ? (int) $nutritionPlan['macroTargets']['carbsGrams'] : null,
-                'fatGrams' => is_numeric($nutritionPlan['macroTargets']['fatGrams'] ?? null) ? (int) $nutritionPlan['macroTargets']['fatGrams'] : null,
-                'nutritionTip' => is_string($nutritionPlan['nutritionTip'] ?? null)
-                    ? $nutritionPlan['nutritionTip']
-                    : (is_string($recommendation?->nutrition_tip) ? $recommendation->nutrition_tip : null),
+                'proteinGrams' => is_numeric($acceptedNutrition['proteinGrams'] ?? $nutritionPlan['macroTargets']['proteinGrams'] ?? null) ? (int) ($acceptedNutrition['proteinGrams'] ?? $nutritionPlan['macroTargets']['proteinGrams']) : null,
+                'carbsGrams' => is_numeric($acceptedNutrition['carbsGrams'] ?? $nutritionPlan['macroTargets']['carbsGrams'] ?? null) ? (int) ($acceptedNutrition['carbsGrams'] ?? $nutritionPlan['macroTargets']['carbsGrams']) : null,
+                'fatGrams' => is_numeric($acceptedNutrition['fatGrams'] ?? $nutritionPlan['macroTargets']['fatGrams'] ?? null) ? (int) ($acceptedNutrition['fatGrams'] ?? $nutritionPlan['macroTargets']['fatGrams']) : null,
+                'nutritionTip' => $nutritionTip,
             ],
             'mentalWellbeing' => [
                 'coachingFocus' => $this->resolveCoachingFocus(
@@ -135,15 +184,96 @@ class CoachChatService
         return 'Recovery-aware full body training';
     }
 
-    private function extractReply(array $payload): string
+    private function resolvePlannedSession(mixed $acceptedWorkout, ?object $recommendation, string $dayFocus): string
     {
-        $reply = is_string($payload['reply'] ?? null) ? trim($payload['reply']) : '';
+        if (is_array($acceptedWorkout)) {
+            foreach (['summary', 'focus', 'adjusted'] as $key) {
+                if (is_string($acceptedWorkout[$key] ?? null) && trim($acceptedWorkout[$key]) !== '') {
+                    return $acceptedWorkout[$key];
+                }
+            }
+        }
+
+        if ($recommendation?->planned && is_string($recommendation->planned) && trim($recommendation->planned) !== '') {
+            return $recommendation->planned;
+        }
+
+        return $dayFocus;
+    }
+
+    private function resolveNutritionTargetCalories(mixed $acceptedNutrition, mixed $nutritionPlan): ?int
+    {
+        if (is_array($acceptedNutrition)) {
+            foreach (['calories', 'targetCalories'] as $key) {
+                if (is_numeric($acceptedNutrition[$key] ?? null)) {
+                    return (int) $acceptedNutrition[$key];
+                }
+            }
+        }
+
+        if (is_array($nutritionPlan) && is_numeric($nutritionPlan['targetCalories'] ?? null)) {
+            return (int) $nutritionPlan['targetCalories'];
+        }
+
+        return null;
+    }
+
+    private function resolveNutritionTip(mixed $acceptedNutrition, mixed $nutritionPlan, ?object $recommendation): ?string
+    {
+        if (is_array($acceptedNutrition) && is_string($acceptedNutrition['summary'] ?? null) && trim($acceptedNutrition['summary']) !== '') {
+            return $acceptedNutrition['summary'];
+        }
+
+        if (is_array($nutritionPlan) && is_string($nutritionPlan['nutritionTip'] ?? null)) {
+            return $nutritionPlan['nutritionTip'];
+        }
+
+        if ($recommendation?->nutrition_tip && is_string($recommendation->nutrition_tip)) {
+            return $recommendation->nutrition_tip;
+        }
+
+        return null;
+    }
+
+    private function extractReplyText(array $payload): string
+    {
+        $reply = is_string($payload['text'] ?? null) ? trim($payload['text']) : '';
 
         if ($reply === '') {
-            throw new RuntimeException('Coach chat reply is empty.');
+            $reply = is_string($payload['reply'] ?? null) ? trim($payload['reply']) : '';
+        }
+
+        if ($reply === '') {
+            throw new RuntimeException('Coach chat text is empty.');
         }
 
         return $reply;
+    }
+
+    private function extractProposal(array $payload): ?array
+    {
+        $proposal = $payload['proposal'] ?? null;
+
+        if ($proposal === null) {
+            return null;
+        }
+
+        if (!is_array($proposal)) {
+            throw new RuntimeException('Coach chat proposal is invalid.');
+        }
+
+        if (!in_array($proposal['type'] ?? null, ['nutrition', 'workout'], true)) {
+            throw new RuntimeException('Coach chat proposal type is invalid.');
+        }
+
+        if (!is_array($proposal['data'] ?? null)) {
+            throw new RuntimeException('Coach chat proposal data is invalid.');
+        }
+
+        return [
+            'type' => $proposal['type'],
+            'data' => $proposal['data'],
+        ];
     }
 
     private function extractFocusAreas(array $payload): array

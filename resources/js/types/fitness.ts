@@ -21,6 +21,25 @@ export type WeeklyPlanData = {
     goal: FitnessGoal;
     days: WeeklyPlanDay[];
     notes?: string[];
+    planned_workout?: {
+        day?: string | null;
+        summary?: string | null;
+        focus?: string | null;
+        adjusted?: string | null;
+        durationMinutes?: number | null;
+        intensity?: 'low' | 'moderate' | 'high' | null;
+        exercises?: WorkoutExercise[];
+        notes?: string[];
+    } | null;
+    planned_nutrition?: {
+        summary?: string | null;
+        calories?: number | null;
+        proteinGrams?: number | null;
+        carbsGrams?: number | null;
+        fatGrams?: number | null;
+        hydrationLiters?: number | null;
+        notes?: string[];
+    } | null;
 };
 
 export type DailyCheckInValues = {
@@ -148,8 +167,17 @@ export type ChatContextViewModel = {
     };
 };
 
+export type ChatProposalType = 'nutrition' | 'workout';
+
+export type ChatProposal = {
+    type: ChatProposalType;
+    data: Record<string, unknown>;
+};
+
 export type ChatReplyPayload = {
-    reply: string;
-    focusAreas: string[];
-    context: ChatContextViewModel;
+    text?: string;
+    proposal?: ChatProposal | null;
+    context?: ChatContextViewModel;
+    reply?: string;
+    focusAreas?: string[];
 };

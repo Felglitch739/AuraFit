@@ -19,6 +19,21 @@ class ChatController extends Controller
 
     public function reply(Request $request, CoachChatService $coachChatService): JsonResponse
     {
+        if ($request->filled('messages')) {
+            $validated = $request->validate([
+                'messages' => ['required', 'array', 'min:1', 'max:24'],
+                'messages.*.sender' => ['required', 'string', 'in:user,ai'],
+                'messages.*.text' => ['required', 'string', 'max:1200'],
+            ]);
+
+            $response = $coachChatService->respondFromMessages(
+                $request->user(),
+                $validated['messages'],
+            );
+
+            return response()->json($response);
+        }
+
         $validated = $request->validate([
             'message' => ['required', 'string', 'max:1200'],
             'history' => ['sometimes', 'array', 'max:12'],
@@ -28,11 +43,13 @@ class ChatController extends Controller
 
         $history = is_array($validated['history'] ?? null) ? $validated['history'] : [];
 
-        $response = $coachChatService->respond(
-            $request->user(),
-            (string) $validated['message'],
-            $history,
-        );
+        $response = $coachChatService->respondFromMessages($request->user(), [
+            ...$history,
+            [
+                'sender' => 'user',
+                'text' => (string) $validated['message'],
+            ],
+        ]);
 
         return response()->json($response);
     }

@@ -1,8 +1,8 @@
 :profile_context
 Current contextual snapshot (JSON):
 :context_snapshot
-Recent conversation:
+Full conversation history:
 :conversation_history
 Latest user message:
 :user_message
-Provide a caring coach response with practical next steps for training, nutrition, and mental wellbeing while staying concise.
+Return only strict JSON matching the system prompt. If the user is asking to change the plan, include a proposal object; otherwise set proposal to null.

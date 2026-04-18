@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DailyLogController;
 use App\Http\Controllers\MacroCounterController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\PlanUpdateController;
 use App\Http\Controllers\WeeklyPlanController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -22,6 +23,8 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('chat', [ChatController::class, 'index'])->name('chat.index');
     Route::post('chat/reply', [ChatController::class, 'reply'])->name('chat.reply');
+    Route::post('api/coach/chat', [ChatController::class, 'reply'])->name('api.coach.chat');
+    Route::post('api/plan/update', [PlanUpdateController::class, 'update'])->name('api.plan.update');
 
     Route::get('macros', [MacroCounterController::class, 'index'])->name('macros.index');
     Route::post('macros/analyze', [MacroCounterController::class, 'analyze'])->name('macros.analyze');

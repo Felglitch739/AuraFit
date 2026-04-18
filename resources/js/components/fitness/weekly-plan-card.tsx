@@ -37,12 +37,27 @@ export default function WeeklyPlanCard({
                         ? `Current day: ${currentDayLabel}`
                         : 'Prepared for daily adaptation'}
                 </p>
+                {plan?.planned_workout ? (
+                    <div className="rounded-xl border border-neon-blue/40 bg-neon-blue/10 p-3 text-sm text-neon-blue">
+                        Accepted chat update active for{' '}
+                        {plan.planned_workout.day ?? currentDayLabel ?? 'today'}
+                        .
+                    </div>
+                ) : null}
+                {plan?.planned_nutrition ? (
+                    <div className="rounded-xl border border-green-400/40 bg-green-500/10 p-3 text-sm text-green-200">
+                        Nutrition change accepted:{' '}
+                        {plan.planned_nutrition.summary ?? 'updated macro plan'}
+                    </div>
+                ) : null}
             </CardHeader>
             <CardContent className="relative z-10 space-y-4">
                 {plan?.days?.length ? (
                     <div className="grid gap-3">
                         {plan.days.map((day) => {
                             const isCurrentDay = currentDayLabel === day.day;
+                            const isAcceptedDay =
+                                plan?.planned_workout?.day === day.day;
 
                             return (
                                 <div
@@ -62,6 +77,11 @@ export default function WeeklyPlanCard({
                                             <p className="text-sm text-muted-foreground">
                                                 {day.focus}
                                             </p>
+                                            {isAcceptedDay ? (
+                                                <p className="mt-1 text-[11px] tracking-[0.22em] text-neon-blue uppercase">
+                                                    Accepted in chat
+                                                </p>
+                                            ) : null}
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2">
                                             {day.durationMinutes !==

@@ -14,6 +14,7 @@ import {
     Target,
 } from 'lucide-react';
 import { dashboard } from '@/routes';
+import SetupLoading from '@/components/fitness/SetupLoading';
 import type { DashboardViewModel } from '@/types/fitness';
 
 type DashboardProps = DashboardViewModel;
@@ -39,6 +40,22 @@ export default function Dashboard({
     const currentDay = currentDayLabel ?? 'Monday';
     const weeklyDays = weeklyPlan?.days ?? [];
     const summaryCards = dashboardSummary?.cards ?? [];
+    const acceptedWorkoutPlan = weeklyPlan?.planned_workout ?? null;
+    const acceptedNutritionPlan = weeklyPlan?.planned_nutrition ?? null;
+    const acceptedWorkoutDay = acceptedWorkoutPlan?.day ?? currentDay;
+    const todayWeeklyDay =
+        weeklyDays.find((day) => day.day === currentDay) ?? null;
+    const plannedWorkoutText =
+        acceptedWorkoutPlan?.summary ??
+        acceptedWorkoutPlan?.focus ??
+        todayWeeklyDay?.focus ??
+        recommendation?.planned ??
+        'Pending check-in';
+    const adjustedWorkoutText =
+        acceptedWorkoutPlan?.adjusted ??
+        recommendation?.adjusted ??
+        todayWeeklyDay?.focus ??
+        'Plan will appear after a check-in or chat update.';
 
     const macroPercent = (current: number, target: number): number => {
         if (target <= 0) {
@@ -79,6 +96,15 @@ export default function Dashboard({
             stroke: '#ef4444',
         };
     })();
+
+    if (weeklyPlanForm.processing) {
+        return (
+            <>
+                <Head title="Dashboard" />
+                <SetupLoading />
+            </>
+        );
+    }
 
     return (
         <>
@@ -382,13 +408,20 @@ export default function Dashboard({
 
                     {recommendation ? (
                         <div className="space-y-4">
+                            {acceptedWorkoutPlan ? (
+                                <div className="rounded-xl border border-neon-blue/40 bg-neon-blue/10 p-4 text-sm text-neon-blue">
+                                    Accepted chat update active for{' '}
+                                    {acceptedWorkoutDay}.
+                                </div>
+                            ) : null}
+
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="rounded-xl border border-glass-border bg-background/50 p-5">
                                     <p className="text-xs tracking-[0.25em] text-muted-foreground uppercase">
                                         Planned
                                     </p>
                                     <p className="mt-2 text-sm text-foreground">
-                                        {recommendation.planned}
+                                        {plannedWorkoutText}
                                     </p>
                                 </div>
                                 <div className="rounded-xl border border-glass-border bg-background/50 p-5">
@@ -396,7 +429,7 @@ export default function Dashboard({
                                         Adjusted
                                     </p>
                                     <p className="mt-2 text-sm text-foreground">
-                                        {recommendation.adjusted}
+                                        {adjustedWorkoutText}
                                     </p>
                                 </div>
                             </div>
@@ -410,6 +443,7 @@ export default function Dashboard({
                                 </p>
                                 <div className="space-y-2">
                                     {(
+                                        acceptedWorkoutPlan?.exercises ??
                                         recommendation.workoutJson.exercises ??
                                         []
                                     ).map((item) => (
@@ -524,7 +558,9 @@ export default function Dashboard({
                                 </p>
                                 <p className="mt-1">
                                     {weeklyPlan
-                                        ? 'Training structure is loaded and active.'
+                                        ? acceptedWorkoutPlan
+                                            ? 'Training structure includes an accepted chat update.'
+                                            : 'Training structure is loaded and active.'
                                         : 'No weekly plan yet. Generate one to define the week.'}
                                 </p>
                             </div>
@@ -564,6 +600,12 @@ export default function Dashboard({
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             {weeklyDays.map((day) => {
                                 const isCurrent = day.day === currentDay;
+                                const isAcceptedDay =
+                                    acceptedWorkoutPlan?.day === day.day;
+                                const displayFocus =
+                                    isAcceptedDay && acceptedWorkoutPlan?.focus
+                                        ? acceptedWorkoutPlan.focus
+                                        : day.focus;
 
                                 return (
                                     <div
@@ -587,8 +629,14 @@ export default function Dashboard({
                                         </div>
 
                                         <p className="mt-2 text-sm text-muted-foreground">
-                                            {day.focus}
+                                            {displayFocus}
                                         </p>
+
+                                        {isAcceptedDay ? (
+                                            <p className="mt-2 text-[11px] tracking-[0.24em] text-neon-blue uppercase">
+                                                Accepted in chat
+                                            </p>
+                                        ) : null}
                                     </div>
                                 );
                             })}
