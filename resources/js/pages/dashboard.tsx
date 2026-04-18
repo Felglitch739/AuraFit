@@ -6,7 +6,6 @@ import {
     BatteryCharging,
     CalendarDays,
     CheckCircle2,
-    ClipboardList,
     Dumbbell,
     LoaderCircle,
     Salad,
@@ -25,7 +24,6 @@ export default function Dashboard({
     nutritionPlan,
     macroSummary,
     currentDayLabel,
-    dashboardSummary,
 }: DashboardProps) {
     const weeklyPlanForm = useForm({
         goal: weeklyPlan?.goal ?? 'maintain',
@@ -39,7 +37,6 @@ export default function Dashboard({
 
     const currentDay = currentDayLabel ?? 'Monday';
     const weeklyDays = weeklyPlan?.days ?? [];
-    const summaryCards = dashboardSummary?.cards ?? [];
     const acceptedWorkoutPlan = weeklyPlan?.planned_workout ?? null;
     const acceptedNutritionPlan = weeklyPlan?.planned_nutrition ?? null;
     const acceptedWorkoutDay = acceptedWorkoutPlan?.day ?? currentDay;
@@ -111,54 +108,74 @@ export default function Dashboard({
             <Head title="Dashboard" />
 
             <div className="space-y-6">
-                <section className="glass-panel rounded-2xl p-6 md:p-8">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                        <div className="max-w-3xl">
-                            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-glass-border bg-background/40 px-3 py-1 text-xs tracking-[0.28em] text-muted-foreground uppercase">
-                                <ClipboardList className="h-3.5 w-3.5 text-neon-blue" />
-                                Full system summary
-                            </div>
-                            <h1 className="font-['Orbitron',sans-serif] text-2xl font-bold text-foreground md:text-4xl">
-                                {dashboardSummary?.headline ??
-                                    'Your training system is coming together.'}
-                            </h1>
-                            <p className="mt-3 max-w-3xl text-sm text-muted-foreground md:text-base">
-                                {dashboardSummary?.description ??
-                                    'Complete your check-in, generate your weekly plan, and build nutrition around the same backend state.'}
-                            </p>
+                <section className="glass-panel rounded-2xl p-3 md:p-4">
+                    <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto_1fr] md:items-stretch md:gap-3">
+                        <div className="grid grid-cols-4 gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
+                            {[
+                                {
+                                    label: 'Setup',
+                                    href: '/onboarding',
+                                    icon: Target,
+                                },
+                                {
+                                    label: 'Check-in',
+                                    href: '/check-in',
+                                    icon: BatteryCharging,
+                                },
+                                {
+                                    label: 'Nutrition',
+                                    href: '/nutrition',
+                                    icon: Apple,
+                                },
+                                {
+                                    label: 'Progress',
+                                    href: '/progress',
+                                    icon: BarChart3,
+                                },
+                            ].map((item) => {
+                                const Icon = item.icon;
+
+                                return (
+                                    <Link
+                                        key={item.label}
+                                        href={item.href}
+                                        className="flex flex-col items-center justify-center gap-1 rounded-xl border border-glass-border bg-background/40 px-2 py-2 text-center transition hover:border-neon-blue hover:text-neon-blue md:min-w-24 md:px-3"
+                                    >
+                                        <Icon className="h-5 w-5" />
+                                        <span className="text-[11px] font-medium text-muted-foreground">
+                                            {item.label}
+                                        </span>
+                                    </Link>
+                                );
+                            })}
                         </div>
 
-                        <div className="rounded-2xl border border-glass-border bg-background/50 px-4 py-3">
-                            <p className="text-xs tracking-[0.24em] text-muted-foreground uppercase">
-                                Status
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-foreground">
-                                {dashboardSummary?.status === 'ready'
-                                    ? 'Ready'
-                                    : dashboardSummary?.status === 'recovery'
-                                      ? 'Recovery mode'
-                                      : 'Building'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        {summaryCards.map((card) => (
-                            <div
-                                key={card.label}
-                                className="rounded-xl border border-glass-border bg-background/40 p-4"
-                            >
-                                <p className="text-xs tracking-[0.22em] text-muted-foreground uppercase">
-                                    {card.label}
+                        <div className="hidden md:grid md:grid-cols-3 md:gap-2">
+                            <div className="rounded-xl border border-glass-border bg-background/40 px-3 py-2">
+                                <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+                                    Readiness
                                 </p>
-                                <p className="mt-2 text-2xl font-bold text-foreground">
-                                    {card.value}
-                                </p>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    {card.detail}
+                                <p className="mt-1 text-lg font-bold text-foreground">
+                                    {readinessScore ?? '--'}
                                 </p>
                             </div>
-                        ))}
+                            <div className="rounded-xl border border-glass-border bg-background/40 px-3 py-2">
+                                <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+                                    Week Days
+                                </p>
+                                <p className="mt-1 text-lg font-bold text-foreground">
+                                    {weeklyDays.length}
+                                </p>
+                            </div>
+                            <div className="rounded-xl border border-glass-border bg-background/40 px-3 py-2">
+                                <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+                                    Meals Today
+                                </p>
+                                <p className="mt-1 text-lg font-bold text-foreground">
+                                    {macroSummary?.entriesCount ?? 0}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </section>
 

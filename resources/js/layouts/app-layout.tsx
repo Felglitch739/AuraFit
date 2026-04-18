@@ -224,7 +224,7 @@ export default function AppLayout({
             </nav>
 
             <div className="relative z-10 min-h-screen pb-22 md:pb-0 md:pl-24">
-                <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-3 py-4 md:px-10 md:py-8">
+                <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-3 py-4 md:px-8 md:py-8">
                     <header className="glass-panel mb-4 flex items-center justify-between gap-3 rounded-2xl border border-glass-border bg-glass-panel px-3 py-2.5 shadow-[0_0_30px_var(--color-neon-pink)/10] backdrop-blur-xl md:mb-6 md:px-4 md:py-3">
                         <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-neon-pink/30 bg-linear-to-br from-neon-pink/25 via-neon-blue/20 to-background shadow-[0_0_20px_var(--color-neon-pink)/20]">
