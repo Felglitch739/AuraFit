@@ -6,6 +6,7 @@ use App\Services\Nutrition\NutritionPlanService;
 use App\Services\WeeklyPlans\WeeklyPlanService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\Request;
@@ -120,11 +121,22 @@ class OnboardingController extends Controller
 
         $user = $request->user();
 
+        Log::info('Onboarding store started.', [
+            'user_id' => $user->id,
+            'workout_mode' => $validated['workout_mode'] ?? null,
+            'activity_level' => $validated['activity_level'] ?? null,
+            'fitness_goal' => $validated['fitness_goal'] ?? null,
+        ]);
+
         try {
             DB::transaction(function () use ($user, $validated, $weightKg, $heightCm, $sportsData, $sportsSchedule, $sportsIntensity, $weeklyPlanService, $nutritionPlanService, ): void {
                 $customRoutine = $validated['workout_mode'] === 'custom'
                     ? $this->normalizeCustomRoutine($validated['custom_routine'] ?? [])
                     : null;
+
+                Log::debug('Onboarding updating user profile.', [
+                    'user_id' => $user->id,
+                ]);
 
                 $user->update([
                     'goal' => $this->mapFitnessGoalToGoal($validated['fitness_goal']),
@@ -144,15 +156,48 @@ class OnboardingController extends Controller
 
                 $user->refresh();
 
+                Log::debug('Onboarding user profile updated.', [
+                    'user_id' => $user->id,
+                ]);
+
+                Log::debug('Onboarding generating weekly plan.', [
+                    'user_id' => $user->id,
+                ]);
+
                 $weeklyPlan = $weeklyPlanService->generateUsingAiOrFallback($user);
                 $weeklyPlanService->saveForUser($user, $weeklyPlan);
 
+                Log::debug('Onboarding weekly plan generated and saved.', [
+                    'user_id' => $user->id,
+                    'days_count' => is_array($weeklyPlan['days'] ?? null) ? count($weeklyPlan['days']) : null,
+                ]);
+
+                Log::debug('Onboarding generating nutrition plan.', [
+                    'user_id' => $user->id,
+                ]);
+
                 $nutritionPlan = $nutritionPlanService->generateUsingAiOrFallback($user);
                 $nutritionPlanService->saveForUser($user, $nutritionPlan);
+
+                Log::debug('Onboarding nutrition plan generated and saved.', [
+                    'user_id' => $user->id,
+                    'days_count' => is_array($nutritionPlan['days'] ?? null) ? count($nutritionPlan['days']) : null,
+                ]);
             });
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            Log::error('Onboarding failed.', [
+                'user_id' => $user->id,
+                'message' => $exception->getMessage(),
+                'exception_class' => get_class($exception),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+
+            $userMessage = app()->isLocal()
+                ? 'Onboarding failed: ' . $exception->getMessage()
+                : 'We could not generate your plans right now. No data was saved from this generation step.';
+
             return back()->withErrors([
-                'onboarding' => 'We could not generate your plans right now. No data was saved from this generation step.',
+                'onboarding' => $userMessage,
             ])->withInput();
         }
 

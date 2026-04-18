@@ -13,10 +13,10 @@ Use this exact shape:
             "exercises": [
                 {"name": "...", "sets": 3, "reps": "8-10", "rest": "60s", "notes": "..."}
             ],
-            "notes": "..."
+          "notes": ["...", "..."]
         }
   ],
-  "notes": ["..."]
+      "notes": ["...", "..."]
 }
 Rules:
 - Exactly 7 day entries from Monday to Sunday.
@@ -28,6 +28,7 @@ Rules:
 - Do not force barbell or gym-centric templates when the user profile is primarily sport-specific (for example swimming, running, cycling, combat sports).
 - Use gym work only as optional support (strength, injury prevention, mobility) when it fits the sport demands.
 - Keep focus concise but specific enough for a frontend card.
-- Notes must contain exactly 2 short strings.
+- Day notes must contain exactly 2 short strings.
+- Weekly notes must contain exactly 2 short strings.
 - Match the plan to the user's activity level, preferred workout mode, sports background, and custom routine when available.
 - If the user is in custom workout mode, preserve their training identity while adapting load and structure.

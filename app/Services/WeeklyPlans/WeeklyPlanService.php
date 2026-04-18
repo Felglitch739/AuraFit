@@ -132,9 +132,15 @@ class WeeklyPlanService
                 throw new RuntimeException('Weekly plan day entry is invalid.');
             }
 
+            $dayName = $day['day'];
             $notes = $day['notes'] ?? [];
-            if (!is_array($notes) || count($notes) < 2) {
-                throw new RuntimeException('Weekly plan day notes must contain at least 2 items.');
+
+            if (is_string($notes) && trim($notes) !== '') {
+                $notes = [$notes];
+            }
+
+            if (!is_array($notes)) {
+                throw new RuntimeException(sprintf('Weekly plan day notes are invalid for %s.', $dayName));
             }
 
             $cleanNotes = [];
@@ -147,8 +153,12 @@ class WeeklyPlanService
                 $cleanNotes[] = $note;
             }
 
+            if (count($cleanNotes) === 1) {
+                $cleanNotes[] = 'Focus on quality movement and recovery.';
+            }
+
             if (count($cleanNotes) < 2) {
-                throw new RuntimeException('Weekly plan day notes must contain at least 2 strings.');
+                throw new RuntimeException(sprintf('Weekly plan day notes must contain at least 2 strings for %s.', $dayName));
             }
 
             $cleanExercises = [];
@@ -168,7 +178,7 @@ class WeeklyPlanService
                     ? $day['intensity']
                     : 'moderate',
                 'exercises' => array_values($cleanExercises),
-                'notes' => array_values($cleanNotes),
+                'notes' => array_values(array_slice($cleanNotes, 0, 2)),
             ];
         }
 
@@ -178,7 +188,15 @@ class WeeklyPlanService
 
         $notes = $payload['notes'] ?? [];
 
-        if (!is_array($notes) || count($notes) < 2) {
+        if (is_string($notes) && trim($notes) !== '') {
+            $notes = [$notes];
+        }
+
+        if (!is_array($notes)) {
+            throw new RuntimeException('Weekly plan notes are invalid.');
+        }
+
+        if (count($notes) < 2) {
             throw new RuntimeException('Weekly plan notes must contain at least 2 items.');
         }
 
