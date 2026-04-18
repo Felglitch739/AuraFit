@@ -22,6 +22,7 @@ return new class extends Migration {
             $table->decimal('weight_kg', 6, 2)->nullable();
             $table->decimal('height_cm', 6, 2)->nullable();
             $table->json('sports_practiced')->nullable();
+            $table->json('sports_schedule')->nullable();
             $table->string('sports_other')->nullable();
             $table->json('onboarding_custom_routine')->nullable();
             $table->timestamp('onboarding_completed_at')->nullable();

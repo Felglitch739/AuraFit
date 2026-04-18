@@ -31,6 +31,12 @@ class OnboardingController extends Controller
                 'sports_practiced' => is_array($user->sports_practiced) && count($user->sports_practiced) > 0
                     ? $user->sports_practiced
                     : ['None'],
+                'sports_schedule' => is_array($user->sports_schedule)
+                    ? $user->sports_schedule
+                    : [],
+                'sports_intensity' => is_array($user->sports_intensity)
+                    ? $user->sports_intensity
+                    : [],
                 'sports_other' => $user->sports_other ?? '',
                 'custom_routine' => is_array($user->onboarding_custom_routine)
                     ? $user->onboarding_custom_routine
@@ -64,7 +70,13 @@ class OnboardingController extends Controller
             'height_ft' => ['nullable', 'integer', 'min:3', 'max:8', 'required_if:height_unit,ft-in'],
             'height_in' => ['nullable', 'integer', 'min:0', 'max:11', 'required_if:height_unit,ft-in'],
             'sports_practiced' => ['required', 'array', 'min:1'],
-            'sports_practiced.*' => ['string', 'in:None,Soccer,Basketball,Volleyball,Tennis,Swimming,Running,Cycling,CrossFit,Martial Arts,Others'],
+            'sports_practiced.*' => ['string', 'in:None,Soccer,Basketball,Volleyball,Tennis,Swimming,Running,Cycling,CrossFit,Gym,Martial Arts,Others'],
+            'sports_schedule' => ['nullable', 'array'],
+            'sports_schedule.*' => ['array'],
+            'sports_schedule.*.*' => ['string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
+            'sports_intensity' => ['nullable', 'array'],
+            'sports_intensity.*' => ['array'],
+            'sports_intensity.*.*' => ['integer', 'in:1,2,3'],
             'sports_other' => ['nullable', 'string', 'max:255'],
             'custom_routine' => ['nullable', 'array'],
             'custom_routine.*' => ['nullable', 'string', 'max:255'],
@@ -73,6 +85,14 @@ class OnboardingController extends Controller
         $sportsData = $this->normalizeSports(
             $validated['sports_practiced'] ?? [],
             $validated['sports_other'] ?? null,
+        );
+        $sportsIntensity = $this->normalizeSportsIntensity(
+            $validated['sports_intensity'] ?? [],
+            $sportsData['sports_practiced'],
+        );
+        $sportsSchedule = $this->normalizeSportsSchedule(
+            $sportsIntensity,
+            $sportsData['sports_practiced'],
         );
         $weightKg = $this->toKg(
             (float) $validated['weight_value'],
@@ -105,6 +125,8 @@ class OnboardingController extends Controller
             'weight_kg' => $weightKg,
             'height_cm' => $heightCm,
             'sports_practiced' => $sportsData['sports_practiced'],
+            'sports_schedule' => $sportsSchedule,
+            'sports_intensity' => $sportsIntensity,
             'sports_other' => $sportsData['sports_other'],
             'onboarding_custom_routine' => $customRoutine,
             'onboarding_completed_at' => Carbon::now(),
@@ -216,5 +238,69 @@ class OnboardingController extends Controller
         $totalInches = ((int) $heightFt * 12) + (int) $heightIn;
 
         return round($totalInches * 2.54, 2);
+    }
+
+    /**
+     * @param  array<string, mixed>  $intensity
+     * @param  array<int, string>  $selectedSports
+     * @return array<string, array<int, string>>
+     */
+    private function normalizeSportsSchedule(array $intensity, array $selectedSports): array
+    {
+        $normalized = [];
+
+        foreach ($this->normalizeSportsIntensity($intensity, $selectedSports) as $sport => $dayMap) {
+            $normalized[$sport] = array_keys($dayMap);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $intensity
+     * @param  array<int, string>  $selectedSports
+     * @return array<string, array<string, int>>
+     */
+    private function normalizeSportsIntensity(array $intensity, array $selectedSports): array
+    {
+        $allowedDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        $selectedMap = array_flip($selectedSports);
+        $normalized = [];
+
+        foreach ($intensity as $sport => $dayMap) {
+            if (!is_string($sport) || !isset($selectedMap[$sport])) {
+                continue;
+            }
+
+            if ($sport === 'None' || $sport === 'Others') {
+                continue;
+            }
+
+            if (!is_array($dayMap)) {
+                continue;
+            }
+
+            $cleanDayMap = [];
+
+            foreach ($dayMap as $day => $level) {
+                if (!is_string($day) || !in_array($day, $allowedDays, true)) {
+                    continue;
+                }
+
+                $numericLevel = is_int($level) ? $level : (is_numeric($level) ? (int) $level : null);
+
+                if (!in_array($numericLevel, [1, 2, 3], true)) {
+                    continue;
+                }
+
+                $cleanDayMap[$day] = $numericLevel;
+            }
+
+            if ($cleanDayMap !== []) {
+                $normalized[$sport] = $cleanDayMap;
+            }
+        }
+
+        return $normalized;
     }
 }

@@ -18,6 +18,7 @@ import {
     Sparkles,
     Wand2,
     Waves,
+    X,
     Zap,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -26,6 +27,20 @@ import { toast } from 'sonner';
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'advanced';
 type FitnessGoal = 'strength' | 'definition' | 'recomposition' | 'maintenance';
 type WorkoutMode = 'generate' | 'custom';
+type WeekDay =
+    | 'Monday'
+    | 'Tuesday'
+    | 'Wednesday'
+    | 'Thursday'
+    | 'Friday'
+    | 'Saturday'
+    | 'Sunday';
+type IntensityLevel = 1 | 2 | 3;
+type SportIntensityByDay = Partial<Record<WeekDay, IntensityLevel>>;
+type SchedulableSport = Exclude<
+    (typeof sportsOptions)[number],
+    'None' | 'Others'
+>;
 
 type OnboardingData = {
     activity_level: ActivityLevel;
@@ -39,6 +54,8 @@ type OnboardingData = {
     height_ft: number | '';
     height_in: number | '';
     sports_practiced: string[];
+    sports_schedule: Record<string, WeekDay[]>;
+    sports_intensity: Record<string, SportIntensityByDay>;
     sports_other: string;
     custom_routine?: {
         [day: string]: string;
@@ -113,6 +130,116 @@ const daysOfWeek = [
     'Sunday',
 ];
 
+const intensityMeta: Record<
+    IntensityLevel,
+    { label: string; shortLabel: string; className: string }
+> = {
+    1: {
+        label: 'Low intensity',
+        shortLabel: 'Low',
+        className: 'border-emerald-400 bg-emerald-500/20 text-emerald-200',
+    },
+    2: {
+        label: 'Moderate intensity',
+        shortLabel: 'Mod',
+        className: 'border-orange-400 bg-orange-500/20 text-orange-200',
+    },
+    3: {
+        label: 'High intensity',
+        shortLabel: 'High',
+        className: 'border-red-400 bg-red-500/20 text-red-200',
+    },
+};
+
+const buildScheduleFromIntensity = (
+    sportsIntensity: Record<string, SportIntensityByDay>,
+): Record<string, WeekDay[]> => {
+    const normalized: Record<string, WeekDay[]> = {};
+
+    Object.entries(sportsIntensity).forEach(([sport, dayMap]) => {
+        const days = daysOfWeek.filter((day) => {
+            const level = dayMap[day as WeekDay];
+            return level === 1 || level === 2 || level === 3;
+        }) as WeekDay[];
+
+        if (days.length > 0) {
+            normalized[sport] = days;
+        }
+    });
+
+    return normalized;
+};
+
+const sanitizeInitialSportsIntensity = (
+    rawIntensity: Partial<OnboardingData>['sports_intensity'],
+): Record<string, SportIntensityByDay> => {
+    if (!rawIntensity || typeof rawIntensity !== 'object') {
+        return {};
+    }
+
+    const normalized: Record<string, SportIntensityByDay> = {};
+
+    Object.entries(rawIntensity).forEach(([sport, dayMap]) => {
+        if (!dayMap || typeof dayMap !== 'object') {
+            return;
+        }
+
+        const normalizedDays: SportIntensityByDay = {};
+
+        Object.entries(dayMap).forEach(([day, value]) => {
+            if (!daysOfWeek.includes(day)) {
+                return;
+            }
+
+            if (value === 1 || value === 2 || value === 3) {
+                normalizedDays[day as WeekDay] = value;
+            }
+        });
+
+        if (Object.keys(normalizedDays).length > 0) {
+            normalized[sport] = normalizedDays;
+        }
+    });
+
+    return normalized;
+};
+
+const deriveInitialSportsIntensity = (
+    initialData?: Partial<OnboardingData>,
+): Record<string, SportIntensityByDay> => {
+    const fromBackend = sanitizeInitialSportsIntensity(
+        initialData?.sports_intensity,
+    );
+
+    if (Object.keys(fromBackend).length > 0) {
+        return fromBackend;
+    }
+
+    const fallback: Record<string, SportIntensityByDay> = {};
+
+    Object.entries(initialData?.sports_schedule ?? {}).forEach(
+        ([sport, days]) => {
+            if (!Array.isArray(days) || days.length === 0) {
+                return;
+            }
+
+            const dayMap: SportIntensityByDay = {};
+            days.forEach((day) => {
+                if (daysOfWeek.includes(day)) {
+                    // Backward-compatible fallback when old payload has schedule but no intensity.
+                    dayMap[day as WeekDay] = 2;
+                }
+            });
+
+            if (Object.keys(dayMap).length > 0) {
+                fallback[sport] = dayMap;
+            }
+        },
+    );
+
+    return fallback;
+};
+
 const sportsOptions = [
     'None',
     'Soccer',
@@ -123,6 +250,7 @@ const sportsOptions = [
     'Running',
     'Cycling',
     'CrossFit',
+    'Gym',
     'Martial Arts',
     'Others',
 ] as const;
@@ -140,6 +268,7 @@ const sportIcons: Record<
     Running: Footprints,
     Cycling: Bike,
     CrossFit: Dumbbell,
+    Gym: Dumbbell,
     'Martial Arts': Swords,
     Others: Medal,
 };
@@ -154,12 +283,16 @@ const sportIconColors: Record<(typeof sportsOptions)[number], string> = {
     Running: 'bg-fuchsia-500/20 text-fuchsia-300',
     Cycling: 'bg-blue-500/20 text-blue-300',
     CrossFit: 'bg-red-500/20 text-red-300',
+    Gym: 'bg-teal-500/20 text-teal-300',
     'Martial Arts': 'bg-violet-500/20 text-violet-300',
     Others: 'bg-pink-500/20 text-pink-300',
 };
 
 export default function OnboardingPage({ initialData }: OnboardingPageProps) {
     const [currentStep, setCurrentStep] = useState(1);
+    const [scheduleModalSport, setScheduleModalSport] =
+        useState<SchedulableSport | null>(null);
+    const initialSportsIntensity = deriveInitialSportsIntensity(initialData);
     const [data, setData] = useState<OnboardingData>({
         activity_level: initialData?.activity_level ?? 'moderate',
         fitness_goal: initialData?.fitness_goal ?? 'recomposition',
@@ -172,6 +305,10 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
         height_ft: initialData?.height_ft ?? '',
         height_in: initialData?.height_in ?? '',
         sports_practiced: initialData?.sports_practiced ?? ['None'],
+        sports_schedule:
+            initialData?.sports_schedule ??
+            buildScheduleFromIntensity(initialSportsIntensity),
+        sports_intensity: initialSportsIntensity,
         sports_other: initialData?.sports_other ?? '',
         custom_routine: {
             Monday: initialData?.custom_routine?.Monday ?? '',
@@ -196,6 +333,8 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
         height_ft: data.height_ft,
         height_in: data.height_in,
         sports_practiced: data.sports_practiced,
+        sports_schedule: data.sports_schedule,
+        sports_intensity: data.sports_intensity,
         sports_other: data.sports_other,
         custom_routine: data.custom_routine,
     });
@@ -223,6 +362,15 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
     };
 
     const handleSportToggle = (sport: (typeof sportsOptions)[number]) => {
+        const isCurrentlySelected = data.sports_practiced.includes(sport);
+
+        if (
+            sport === 'None' ||
+            (isCurrentlySelected && scheduleModalSport === sport)
+        ) {
+            setScheduleModalSport(null);
+        }
+
         setData((prev) => {
             const alreadySelected = prev.sports_practiced.includes(sport);
 
@@ -230,6 +378,8 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                 return {
                     ...prev,
                     sports_practiced: alreadySelected ? [] : ['None'],
+                    sports_schedule: {},
+                    sports_intensity: {},
                     sports_other: '',
                 };
             }
@@ -244,14 +394,64 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                 nextSports = [...nextSports, sport];
             }
 
+            const nextSchedule = { ...prev.sports_schedule };
+            const nextIntensity = { ...prev.sports_intensity };
+
+            if (alreadySelected) {
+                delete nextSchedule[sport];
+                delete nextIntensity[sport];
+            }
+
             return {
                 ...prev,
                 sports_practiced: nextSports,
+                sports_schedule: nextSchedule,
+                sports_intensity: nextIntensity,
                 sports_other: nextSports.includes('Others')
                     ? prev.sports_other
                     : '',
             };
         });
+    };
+
+    const handleSportDayIntensityCycle = (
+        sport: (typeof sportsOptions)[number],
+        day: WeekDay,
+    ) => {
+        setData((prev) => {
+            const currentIntensityByDay = prev.sports_intensity[sport] ?? {};
+            const currentLevel = currentIntensityByDay[day] ?? 0;
+            const nextLevel = ((currentLevel % 4) + 1) % 4;
+
+            const nextIntensityByDay: SportIntensityByDay = {
+                ...currentIntensityByDay,
+            };
+
+            if (nextLevel === 0) {
+                delete nextIntensityByDay[day];
+            } else {
+                nextIntensityByDay[day] = nextLevel as IntensityLevel;
+            }
+
+            const nextSportsIntensity = { ...prev.sports_intensity };
+
+            if (Object.keys(nextIntensityByDay).length === 0) {
+                delete nextSportsIntensity[sport];
+            } else {
+                nextSportsIntensity[sport] = nextIntensityByDay;
+            }
+
+            return {
+                ...prev,
+                sports_intensity: nextSportsIntensity,
+                sports_schedule:
+                    buildScheduleFromIntensity(nextSportsIntensity),
+            };
+        });
+    };
+
+    const openSportScheduleModal = (sport: SchedulableSport) => {
+        setScheduleModalSport(sport);
     };
 
     const handleNextStep = () => {
@@ -291,6 +491,8 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
             height_ft: data.height_ft,
             height_in: data.height_in,
             sports_practiced: data.sports_practiced,
+            sports_schedule: data.sports_schedule,
+            sports_intensity: data.sports_intensity,
             sports_other: data.sports_other,
             custom_routine: data.custom_routine,
         });
@@ -308,10 +510,10 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                 <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(var(--color-foreground)_1px,transparent_1px)] bg-size-[56px_56px] opacity-[0.03]" />
 
                 {/* Main content */}
-                <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-2 py-6 sm:px-4 sm:py-8">
+                <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-1 py-4 sm:px-3 sm:py-6">
                     <div className="w-full max-w-none md:max-w-3xl">
                         {/* Header */}
-                        <div className="mb-8 text-center">
+                        <div className="mb-6 text-center">
                             <div className="mb-4 flex items-center justify-center gap-2">
                                 <Zap className="h-8 w-8 text-neon-pink" />
                                 <h1 className="font-['Orbitron',sans-serif] text-3xl font-bold text-foreground">
@@ -324,7 +526,7 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                         </div>
 
                         {/* Progress bar */}
-                        <div className="mb-8">
+                        <div className="mb-6">
                             <div className="mb-2 flex items-center justify-between text-sm">
                                 <span className="text-muted-foreground">
                                     Step {currentStep} of 5
@@ -342,7 +544,7 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                         </div>
 
                         {/* Content */}
-                        <div className="glass-panel rounded-2xl border border-glass-border bg-glass-panel p-4 backdrop-blur-xl sm:p-6 md:p-8">
+                        <div className="glass-panel rounded-2xl border border-glass-border bg-glass-panel p-3 backdrop-blur-xl sm:p-5 md:p-7">
                             {/* Step 1: Lifestyle */}
                             {currentStep === 1 && (
                                 <div className="animate-in space-y-6 duration-300 fade-in">
@@ -630,7 +832,7 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                                         </p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                                         {sportsOptions.map((sport) => {
                                             const selected =
                                                 data.sports_practiced.includes(
@@ -639,22 +841,36 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                                             const SportIcon = sportIcons[sport];
                                             const iconColor =
                                                 sportIconColors[sport];
+                                            const canSchedule =
+                                                selected &&
+                                                sport !== 'None' &&
+                                                sport !== 'Others';
+                                            const selectedDaysCount =
+                                                Object.keys(
+                                                    data.sports_intensity[
+                                                        sport
+                                                    ] ?? {},
+                                                ).length;
 
                                             return (
-                                                <button
+                                                <div
                                                     key={sport}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleSportToggle(sport)
-                                                    }
                                                     className={[
-                                                        'group aspect-square rounded-2xl border p-3 text-center transition active:scale-[0.98]',
+                                                        'group flex aspect-square flex-col rounded-2xl border p-2 text-center transition',
                                                         selected
                                                             ? 'border-neon-pink bg-neon-pink/15 text-foreground shadow-[0_0_18px_rgba(217,70,239,0.28)]'
                                                             : 'border-glass-border bg-background/40 text-muted-foreground hover:border-neon-pink/50 hover:text-foreground',
                                                     ].join(' ')}
                                                 >
-                                                    <span className="flex h-full flex-col items-center justify-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleSportToggle(
+                                                                sport,
+                                                            )
+                                                        }
+                                                        className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl active:scale-[0.98]"
+                                                    >
                                                         <span
                                                             className={[
                                                                 'inline-flex h-12 w-12 items-center justify-center rounded-2xl transition group-hover:scale-105',
@@ -666,8 +882,33 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                                                         <span className="text-xs leading-tight font-semibold">
                                                             {sport}
                                                         </span>
-                                                    </span>
-                                                </button>
+                                                        {canSchedule ? (
+                                                            <span className="text-[11px] font-semibold text-neon-blue">
+                                                                {
+                                                                    selectedDaysCount
+                                                                }{' '}
+                                                                {selectedDaysCount ===
+                                                                1
+                                                                    ? 'day'
+                                                                    : 'days'}
+                                                            </span>
+                                                        ) : null}
+                                                    </button>
+
+                                                    {canSchedule ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                openSportScheduleModal(
+                                                                    sport as SchedulableSport,
+                                                                )
+                                                            }
+                                                            className="mt-1 rounded-lg border border-neon-blue/40 bg-neon-blue/12 px-2 py-1 text-[11px] font-semibold text-neon-blue transition hover:bg-neon-blue/20"
+                                                        >
+                                                            Choose days
+                                                        </button>
+                                                    ) : null}
+                                                </div>
                                             );
                                         })}
                                     </div>
@@ -692,6 +933,126 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                                                 placeholder="e.g., Climbing, Rowing"
                                                 className="w-full rounded-lg border border-glass-border bg-background/60 px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-neon-pink focus:ring-2 focus:ring-neon-pink/20"
                                             />
+                                        </div>
+                                    ) : null}
+
+                                    {scheduleModalSport ? (
+                                        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-2 sm:items-center sm:p-4">
+                                            <div className="w-full max-w-md rounded-2xl border border-glass-border bg-background/95 p-4 shadow-2xl backdrop-blur-xl sm:p-5">
+                                                <div className="mb-3 flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            Training schedule
+                                                            and intensity
+                                                        </p>
+                                                        <h3 className="font-['Orbitron',sans-serif] text-lg font-bold text-foreground">
+                                                            {scheduleModalSport}
+                                                        </h3>
+                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                            Click each day to
+                                                            cycle: low (green),
+                                                            moderate (orange),
+                                                            high (red), then
+                                                            off.
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setScheduleModalSport(
+                                                                null,
+                                                            )
+                                                        }
+                                                        className="rounded-lg border border-glass-border p-2 text-muted-foreground transition hover:text-foreground"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
+                                                    <span className="rounded-md border border-emerald-400 bg-emerald-500/20 px-2 py-1 text-emerald-200">
+                                                        1 click = Low
+                                                    </span>
+                                                    <span className="rounded-md border border-orange-400 bg-orange-500/20 px-2 py-1 text-orange-200">
+                                                        2 clicks = Moderate
+                                                    </span>
+                                                    <span className="rounded-md border border-red-400 bg-red-500/20 px-2 py-1 text-red-200">
+                                                        3 clicks = High
+                                                    </span>
+                                                </div>
+
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {daysOfWeek.map((day) => {
+                                                        const dayIntensity =
+                                                            data
+                                                                .sports_intensity[
+                                                                scheduleModalSport
+                                                            ]?.[
+                                                                day as WeekDay
+                                                            ] ?? 0;
+
+                                                        const isDaySelected =
+                                                            dayIntensity > 0;
+                                                        const intensityStyle =
+                                                            isDaySelected
+                                                                ? intensityMeta[
+                                                                      dayIntensity as IntensityLevel
+                                                                  ].className
+                                                                : '';
+                                                        const intensityShortLabel =
+                                                            isDaySelected
+                                                                ? intensityMeta[
+                                                                      dayIntensity as IntensityLevel
+                                                                  ].shortLabel
+                                                                : 'Off';
+
+                                                        return (
+                                                            <button
+                                                                key={`${scheduleModalSport}-${day}`}
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleSportDayIntensityCycle(
+                                                                        scheduleModalSport,
+                                                                        day as WeekDay,
+                                                                    )
+                                                                }
+                                                                className={[
+                                                                    'rounded-lg border px-2 py-2 text-xs font-semibold transition',
+                                                                    isDaySelected
+                                                                        ? intensityStyle
+                                                                        : 'border-glass-border bg-background/60 text-muted-foreground hover:text-foreground',
+                                                                ].join(' ')}
+                                                            >
+                                                                <div>
+                                                                    {day.slice(
+                                                                        0,
+                                                                        3,
+                                                                    )}
+                                                                </div>
+                                                                <div className="mt-1 text-[10px] opacity-80">
+                                                                    {
+                                                                        intensityShortLabel
+                                                                    }
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                <div className="mt-4 flex justify-end">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setScheduleModalSport(
+                                                                null,
+                                                            )
+                                                        }
+                                                        className="rounded-lg bg-linear-to-r from-neon-blue to-cyan-600 px-4 py-2 text-sm font-semibold text-white"
+                                                    >
+                                                        Done
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
                                     ) : null}
                                 </div>
@@ -924,7 +1285,7 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                         </div>
 
                         {/* Navigation Buttons */}
-                        <div className="mt-6 flex items-center justify-between gap-3">
+                        <div className="mt-4 flex items-center justify-between gap-3">
                             <button
                                 onClick={handlePreviousStep}
                                 disabled={currentStep === 1}

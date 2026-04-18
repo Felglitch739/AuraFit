@@ -75,7 +75,11 @@ Rules:
 - Exactly 7 day entries from Monday to Sunday.
 - Use recovery-aware pacing based on activity level, age, and workout mode.
 - If workout_mode is custom, keep the structure familiar to the user and adapt load instead of replacing the split.
-- If the user lists sports, bias accessory work, conditioning, or mobility toward those demands.
+- If the user lists sports, those sports must drive the weekly structure.
+- If sports_schedule is provided, map the main session of each day to that schedule; do not ignore it.
+- If sports_intensity is provided, align each day intensity with it (1=low, 2=moderate, 3=high) before adding accessories.
+- Do not force barbell or gym-centric templates when the user profile is primarily sport-specific (for example swimming, running, cycling, combat sports).
+- Use gym work only as optional support (strength, injury prevention, mobility) when it fits the sport demands.
 - Keep focus concise but specific enough for a frontend card.
 - Notes must contain exactly 2 short strings.
 - Match the plan to the user's activity level, preferred workout mode, sports background, and custom routine when available.
@@ -86,7 +90,10 @@ PROMPT;
             $this->profilePromptBuilder->build($user),
             'Weekly plan target goal: ' . $goal,
             'Build a Monday-to-Sunday plan that matches the profile context and the target goal.',
-            'Prefer muscle-group based sessions, but keep sport-specific prep, mobility, and conditioning when the user profile suggests it.',
+            'Use sports_practiced, sports_schedule, and sports_intensity as primary constraints for day-by-day planning.',
+            'If sports_schedule exists, each scheduled day must clearly reflect the listed sport session before any accessory training.',
+            'If sports_intensity exists, match day load to it (1=low, 2=moderate, 3=high) and avoid contradictory intensity labels.',
+            'When the athlete is not gym-first, avoid pure bodybuilding splits and write sessions in sport language (technique, intervals, conditioning, mobility, recovery).',
             'For advanced or high-activity users, increase density and specificity; for lower activity users, reduce total load and simplify the split.',
         ]);
 

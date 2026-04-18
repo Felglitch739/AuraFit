@@ -24,6 +24,8 @@ class UserProfilePromptBuilder
             'weight_kg' => $user->weight_kg ?? 'unspecified',
             'height_cm' => $user->height_cm ?? 'unspecified',
             'sports_practiced' => $this->formatSportsPracticed($user->sports_practiced),
+            'sports_schedule' => $this->formatSportsSchedule($user->sports_schedule),
+            'sports_intensity' => $this->formatSportsIntensity($user->sports_intensity),
             'sports_other' => $user->sports_other ?: 'none',
             'onboarding_completed' => $user->onboarding_completed_at?->toDateString() ?? 'no',
             'custom_routine' => $this->formatCustomRoutine($user->onboarding_custom_routine),
@@ -40,6 +42,8 @@ class UserProfilePromptBuilder
             '- Weight (kg): ' . $profile['weight_kg'],
             '- Height (cm): ' . $profile['height_cm'],
             '- Sports practiced: ' . $profile['sports_practiced'],
+            '- Sports schedule / training days: ' . $profile['sports_schedule'],
+            '- Sports intensity by day (1=low, 2=moderate, 3=high): ' . $profile['sports_intensity'],
             '- Other sports: ' . $profile['sports_other'],
             '- Onboarding completed: ' . $profile['onboarding_completed'],
             '- Custom routine / weekly preference: ' . $profile['custom_routine'],
@@ -78,6 +82,43 @@ class UserProfilePromptBuilder
         return $style;
     }
 
+    private function formatSportsSchedule(mixed $sportsSchedule): string
+    {
+        if (!is_array($sportsSchedule) || $sportsSchedule === []) {
+            return 'none';
+        }
+
+        $pairs = [];
+
+        foreach ($sportsSchedule as $day => $sportOrSession) {
+            if (!is_string($day) || trim($day) === '') {
+                continue;
+            }
+
+            if (is_array($sportOrSession)) {
+                $items = array_filter(array_map(
+                    static fn($item) => is_string($item) ? trim($item) : '',
+                    $sportOrSession,
+                ));
+
+                if ($items === []) {
+                    continue;
+                }
+
+                $pairs[] = $day . ': ' . implode(', ', $items);
+                continue;
+            }
+
+            if (!is_string($sportOrSession) || trim($sportOrSession) === '') {
+                continue;
+            }
+
+            $pairs[] = $day . ': ' . $sportOrSession;
+        }
+
+        return $pairs !== [] ? implode('; ', $pairs) : 'none';
+    }
+
     private function formatSportsPracticed(mixed $sportsPracticed): string
     {
         if (!is_array($sportsPracticed) || $sportsPracticed === []) {
@@ -88,6 +129,45 @@ class UserProfilePromptBuilder
             static fn($sport) => is_string($sport) ? $sport : (string) $sport,
             $sportsPracticed,
         ));
+    }
+
+    private function formatSportsIntensity(mixed $sportsIntensity): string
+    {
+        if (!is_array($sportsIntensity) || $sportsIntensity === []) {
+            return 'none';
+        }
+
+        $sportEntries = [];
+
+        foreach ($sportsIntensity as $sport => $dayMap) {
+            if (!is_string($sport) || trim($sport) === '' || !is_array($dayMap)) {
+                continue;
+            }
+
+            $dayEntries = [];
+
+            foreach ($dayMap as $day => $level) {
+                if (!is_string($day) || trim($day) === '') {
+                    continue;
+                }
+
+                $numericLevel = is_int($level) ? $level : (is_numeric($level) ? (int) $level : null);
+
+                if (!in_array($numericLevel, [1, 2, 3], true)) {
+                    continue;
+                }
+
+                $dayEntries[] = sprintf('%s=%d', $day, $numericLevel);
+            }
+
+            if ($dayEntries === []) {
+                continue;
+            }
+
+            $sportEntries[] = $sport . ': ' . implode(', ', $dayEntries);
+        }
+
+        return $sportEntries !== [] ? implode('; ', $sportEntries) : 'none';
     }
 
     private function formatCustomRoutine(mixed $customRoutine): string

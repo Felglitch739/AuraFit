@@ -77,7 +77,18 @@ export type DashboardViewModel = {
     weeklyPlan?: WeeklyPlanData | null;
     dailyCheckIn?: DailyCheckInValues | null;
     recommendation?: RecommendationData | null;
+    nutritionPlan?: NutritionPlanData | null;
     currentDayLabel?: string;
+    dashboardSummary?: {
+        headline: string;
+        description: string;
+        status: 'ready' | 'building' | 'recovery';
+        cards: Array<{
+            label: string;
+            value: string;
+            detail: string;
+        }>;
+    };
 };
 
 export type NutritionViewModel = {

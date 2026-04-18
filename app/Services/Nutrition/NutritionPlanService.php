@@ -112,6 +112,11 @@ Rules:
 - Keep food suggestions realistic, accessible, and sports-focused.
 - Match calories and macros to the goal and activity level.
 - Increase carbohydrate emphasis for heavier training or performance days.
+- Use sports_practiced, sports_schedule, and sports_intensity to periodize nutrition across the week (hard sport day vs light/recovery day).
+- If sports_intensity is present, high days (3) must have noticeably higher carbs and total calories than low days (1), while preserving the goal.
+- When the user trains a specific sport (for example swimming), make meal timing and carb loading reflect that sport demand instead of generic gym bulking/cutting templates.
+- Vary daily meal focus based on the scheduled sport session; do not repeat the same generic structure every day.
+- Include practical pre-session and post-session fueling guidance on days with sport practice.
 - Keep explanations short and practical.
 - If the user is in custom workout mode, keep the nutrition style consistent with their habits and sports background.
 PROMPT;
@@ -127,7 +132,10 @@ PROMPT;
             ) : 'No daily check-in is available yet.',
             $recommendation ? 'Latest workout recommendation readiness score: ' . (int) $recommendation->readiness_score : 'No recommendation has been generated yet.',
             'Build a 7-day meal plan with goal-appropriate calories, macros, hydration guidance, and meal timing.',
+            'Use sports_practiced, sports_schedule, and sports_intensity to set daily fueling load and meal timing (especially around training sessions).',
+            'Make carb and calorie distribution visibly responsive to intensity: low < moderate < high when applicable.',
             'Each day should have 3 to 4 meals and one short recovery/performance note.',
+            'Avoid generic bodybuilding-only recommendations when the user is sport-specific.',
         ]);
 
         return $this->openAiClient->chatJson($systemPrompt, $userPrompt);

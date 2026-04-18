@@ -5,9 +5,11 @@ import {
     BatteryCharging,
     CalendarDays,
     CheckCircle2,
+    ClipboardList,
     Dumbbell,
     LoaderCircle,
     Sparkles,
+    Salad,
     Target,
 } from 'lucide-react';
 import { dashboard } from '@/routes';
@@ -18,7 +20,9 @@ type DashboardProps = DashboardViewModel;
 export default function Dashboard({
     weeklyPlan,
     recommendation,
+    nutritionPlan,
     currentDayLabel,
+    dashboardSummary,
 }: DashboardProps) {
     const weeklyPlanForm = useForm({
         goal: weeklyPlan?.goal ?? 'maintain',
@@ -33,6 +37,7 @@ export default function Dashboard({
 
     const currentDay = currentDayLabel ?? 'Monday';
     const weeklyDays = weeklyPlan?.days ?? [];
+    const summaryCards = dashboardSummary?.cards ?? [];
 
     const status = (() => {
         if (readinessScore === null) {
@@ -67,6 +72,57 @@ export default function Dashboard({
         <>
             <Head title="Dashboard" />
             <div className="space-y-6">
+                <section className="glass-panel rounded-2xl p-6 md:p-8">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="max-w-3xl">
+                            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-glass-border bg-background/40 px-3 py-1 text-xs tracking-[0.28em] text-muted-foreground uppercase">
+                                <ClipboardList className="h-3.5 w-3.5 text-neon-blue" />
+                                Full system summary
+                            </div>
+                            <h1 className="font-['Orbitron',sans-serif] text-2xl font-bold text-foreground md:text-4xl">
+                                {dashboardSummary?.headline ??
+                                    'Your training system is coming together.'}
+                            </h1>
+                            <p className="mt-3 max-w-3xl text-sm text-muted-foreground md:text-base">
+                                {dashboardSummary?.description ??
+                                    'Complete your check-in, generate your weekly plan, and build nutrition around the same backend state.'}
+                            </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-glass-border bg-background/50 px-4 py-3">
+                            <p className="text-xs tracking-[0.24em] text-muted-foreground uppercase">
+                                Status
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-foreground">
+                                {dashboardSummary?.status === 'ready'
+                                    ? 'Ready'
+                                    : dashboardSummary?.status === 'recovery'
+                                      ? 'Recovery mode'
+                                      : 'Building'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        {summaryCards.map((card) => (
+                            <div
+                                key={card.label}
+                                className="rounded-xl border border-glass-border bg-background/40 p-4"
+                            >
+                                <p className="text-xs tracking-[0.22em] text-muted-foreground uppercase">
+                                    {card.label}
+                                </p>
+                                <p className="mt-2 text-2xl font-bold text-foreground">
+                                    {card.value}
+                                </p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    {card.detail}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
                 <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
                     <article className="glass-panel relative overflow-hidden rounded-2xl p-6 md:col-span-2">
                         <div className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full bg-neon-pink/15 blur-2xl" />
@@ -229,6 +285,100 @@ export default function Dashboard({
                             weekly plan" button to create one.
                         </div>
                     )}
+                </section>
+
+                <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                    <article className="glass-panel rounded-2xl p-6">
+                        <h3 className="mb-4 flex items-center gap-2 text-xl font-semibold text-foreground">
+                            <Salad className="h-5 w-5 text-green-500" />
+                            Nutrition snapshot
+                        </h3>
+
+                        {nutritionPlan ? (
+                            <div className="space-y-4">
+                                <div className="rounded-xl border border-glass-border bg-background/40 p-4">
+                                    <p className="text-sm font-semibold text-foreground">
+                                        {nutritionPlan.title}
+                                    </p>
+                                    <p className="mt-1 text-sm text-muted-foreground">
+                                        {nutritionPlan.summary}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-xl border border-glass-border bg-background/40 p-4">
+                                        <p className="text-xs tracking-[0.22em] text-muted-foreground uppercase">
+                                            Calories
+                                        </p>
+                                        <p className="mt-2 text-xl font-bold text-foreground">
+                                            {nutritionPlan.targetCalories}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl border border-glass-border bg-background/40 p-4">
+                                        <p className="text-xs tracking-[0.22em] text-muted-foreground uppercase">
+                                            Hydration
+                                        </p>
+                                        <p className="mt-2 text-xl font-bold text-foreground">
+                                            {nutritionPlan.hydrationLiters}L
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border-l-4 border-green-500 bg-background/50 p-4">
+                                    <p className="text-sm text-foreground italic">
+                                        "{nutritionPlan.nutritionTip}"
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-dashed border-glass-border bg-background/40 p-5 text-sm text-muted-foreground">
+                                Generate your nutrition plan to show calories,
+                                macros, and recovery guidance here.
+                            </div>
+                        )}
+                    </article>
+
+                    <article className="glass-panel rounded-2xl p-6">
+                        <h3 className="mb-4 flex items-center gap-2 text-xl font-semibold text-foreground">
+                            <Sparkles className="h-5 w-5 text-neon-blue" />
+                            Integration summary
+                        </h3>
+
+                        <div className="space-y-3 text-sm text-muted-foreground">
+                            <div className="rounded-xl border border-glass-border bg-background/40 p-4">
+                                <p className="font-semibold text-foreground">
+                                    Weekly plan
+                                </p>
+                                <p className="mt-1">
+                                    {weeklyPlan
+                                        ? 'Your training week is already loaded from the database.'
+                                        : 'No weekly plan yet. Generate one to define the training structure.'}
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-glass-border bg-background/40 p-4">
+                                <p className="font-semibold text-foreground">
+                                    Check-in and recovery
+                                </p>
+                                <p className="mt-1">
+                                    {recommendation
+                                        ? 'Latest readiness and workout adjustment are connected to the dashboard.'
+                                        : 'Complete the check-in to connect recovery with training decisions.'}
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-glass-border bg-background/40 p-4">
+                                <p className="font-semibold text-foreground">
+                                    Nutrition
+                                </p>
+                                <p className="mt-1">
+                                    {nutritionPlan
+                                        ? 'Nutrition is now part of the same live summary, so training and diet stay aligned.'
+                                        : 'Nutrition remains ready to generate from the dedicated page.'}
+                                </p>
+                            </div>
+                        </div>
+                    </article>
                 </section>
 
                 <section className="glass-panel rounded-2xl p-6">
