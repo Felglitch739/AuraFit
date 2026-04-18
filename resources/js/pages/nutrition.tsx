@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
+import NutritionLoading from '@/components/fitness/NutritionLoading';
 import type {
     NutritionViewModel,
     NutritionMeal,
@@ -180,7 +181,9 @@ export default function NutritionPage({
                     </article>
                 </section>
 
-                {nutritionPlan ? (
+                {form.processing ? (
+                    <NutritionLoading />
+                ) : nutritionPlan ? (
                     <>
                         <section className="grid grid-cols-2 gap-4 md:grid-cols-5">
                             {summaryTiles.map((tile) => {

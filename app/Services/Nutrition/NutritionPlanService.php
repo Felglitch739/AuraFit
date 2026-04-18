@@ -50,6 +50,60 @@ class NutritionPlanService
         return $nutritionPlan?->nutrition_json;
     }
 
+    public function regenerateCurrentDay(User $user, DailyLog $dailyLog, Recommendation $recommendation, string $dayName): NutritionPlan
+    {
+        $existingPlan = $this->getForUser($user);
+
+        if (!$existingPlan || !is_array($existingPlan->nutrition_json)) {
+            throw new RuntimeException('Nutrition plan must exist before regenerating a single day.');
+        }
+
+        $generatedPayload = $this->generateUsingAiOrFallback($user, $dailyLog, $recommendation);
+        $existingPayload = $existingPlan->nutrition_json;
+
+        $existingDays = $existingPayload['days'] ?? null;
+        $generatedDays = $generatedPayload['days'] ?? null;
+
+        if (!is_array($existingDays) || !is_array($generatedDays)) {
+            throw new RuntimeException('Nutrition days are invalid for day regeneration.');
+        }
+
+        $generatedDay = null;
+        foreach ($generatedDays as $candidateDay) {
+            if (is_array($candidateDay) && ($candidateDay['day'] ?? null) === $dayName) {
+                $generatedDay = $candidateDay;
+                break;
+            }
+        }
+
+        if (!is_array($generatedDay)) {
+            throw new RuntimeException('Could not find regenerated nutrition for today.');
+        }
+
+        $replaced = false;
+        foreach ($existingDays as $index => $existingDay) {
+            if (is_array($existingDay) && ($existingDay['day'] ?? null) === $dayName) {
+                $existingDays[$index] = $generatedDay;
+                $replaced = true;
+                break;
+            }
+        }
+
+        if (!$replaced) {
+            throw new RuntimeException('Current day was not found in existing nutrition plan.');
+        }
+
+        $mergedPayload = [
+            ...$existingPayload,
+            'days' => array_values($existingDays),
+            'nutritionTip' => (string) ($generatedPayload['nutritionTip'] ?? ($existingPayload['nutritionTip'] ?? '')),
+            'daily_log_id' => $dailyLog->id,
+            'recommendation_id' => $recommendation->id,
+        ];
+
+        return $this->saveForUser($user, $mergedPayload, $dailyLog, $recommendation);
+    }
+
     private function generateUsingAi(User $user, ?DailyLog $dailyLog, ?Recommendation $recommendation, string $goal): array
     {
         $systemPrompt = $this->promptTemplateService->load('ai/nutrition.system.txt');

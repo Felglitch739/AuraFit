@@ -34,6 +34,7 @@ class DailyCheckinService
         $planned = $this->getPlannedWorkoutForToday($user);
 
         $aiPayload = $this->generateRecommendationUsingAiPayload($dailyLog, $user, $planned, $trainingLoadMode);
+    
 
         return $this->normalizeRecommendationPayload($aiPayload, $dailyLog, $planned, $trainingLoadMode);
     }

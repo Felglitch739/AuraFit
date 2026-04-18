@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import SetupLoading from '@/components/fitness/SetupLoading';
 
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'advanced';
 type FitnessGoal = 'strength' | 'definition' | 'recomposition' | 'maintenance';
@@ -499,6 +500,15 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
     }, [data]);
 
     const progressPercentage = (currentStep / 5) * 100;
+
+    if (form.processing) {
+        return (
+            <>
+                <Head title="Onboarding" />
+                <SetupLoading />
+            </>
+        );
+    }
 
     return (
         <>

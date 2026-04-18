@@ -2,6 +2,7 @@
 
 namespace App\Services\WeeklyPlans;
 
+use App\Models\Recommendation;
 use App\Models\User;
 use App\Models\WeeklyPlan;
 use App\Services\Ai\OpenAiClientService;
@@ -37,6 +38,67 @@ class WeeklyPlanService
     public function getForUser(User $user): ?WeeklyPlan
     {
         return $user->weeklyPlan()->first();
+    }
+
+    public function regenerateCurrentDayFromRecommendation(User $user, Recommendation $recommendation, string $dayName): WeeklyPlan
+    {
+        $weeklyPlan = $this->getForUser($user);
+
+        if (!$weeklyPlan || !is_array($weeklyPlan->plan_json)) {
+            throw new RuntimeException('Weekly plan must exist before regenerating a single day.');
+        }
+
+        $planPayload = $weeklyPlan->plan_json;
+        $days = $planPayload['days'] ?? null;
+
+        if (!is_array($days)) {
+            throw new RuntimeException('Weekly plan days are invalid.');
+        }
+
+        $workoutJson = $recommendation->workout_json;
+        if (!is_array($workoutJson)) {
+            throw new RuntimeException('Recommendation workout JSON is invalid.');
+        }
+
+        $normalizedExercises = $this->normalizeRecommendationExercises($workoutJson['exercises'] ?? null);
+
+        $updated = false;
+        foreach ($days as $index => $day) {
+            if (!is_array($day) || ($day['day'] ?? null) !== $dayName) {
+                continue;
+            }
+
+            $existingNotes = is_array($day['notes'] ?? null) ? $day['notes'] : [];
+            $notes = [
+                'Updated after reduced-load check-in to protect recovery.',
+                ...array_values(array_filter($existingNotes, fn(mixed $note): bool => is_string($note) && trim($note) !== '')),
+            ];
+
+            $days[$index] = [
+                ...$day,
+                'focus' => is_string($recommendation->adjusted) && trim($recommendation->adjusted) !== ''
+                    ? $recommendation->adjusted
+                    : (is_string($workoutJson['title'] ?? null) && trim($workoutJson['title']) !== ''
+                        ? $workoutJson['title']
+                        : ($day['focus'] ?? 'Recovery-focused training')),
+                'intensity' => 'low',
+                'durationMinutes' => min((int) ($day['durationMinutes'] ?? 45), 45),
+                'exercises' => $normalizedExercises,
+                'notes' => array_slice($notes, 0, 3),
+            ];
+
+            $updated = true;
+            break;
+        }
+
+        if (!$updated) {
+            throw new RuntimeException('Current day was not found in weekly plan.');
+        }
+
+        return $this->saveForUser($user, [
+            ...$planPayload,
+            'days' => array_values($days),
+        ]);
     }
 
     private function generateUsingAi(User $user, string $goal): array
@@ -156,5 +218,34 @@ class WeeklyPlanService
             'recomposition', 'maintenance' => 'maintain',
             default => 'maintain',
         };
+    }
+
+    private function normalizeRecommendationExercises(mixed $exercises): array
+    {
+        if (!is_array($exercises) || $exercises === []) {
+            throw new RuntimeException('Recommendation exercises are missing for day update.');
+        }
+
+        $normalized = [];
+
+        foreach ($exercises as $exercise) {
+            if (!is_array($exercise) || !is_string($exercise['name'] ?? null) || trim($exercise['name']) === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'name' => $exercise['name'],
+                'sets' => isset($exercise['sets']) ? (int) $exercise['sets'] : 3,
+                'reps' => is_string($exercise['reps'] ?? null) ? $exercise['reps'] : '8-12',
+                'rest' => is_string($exercise['rest'] ?? null) ? $exercise['rest'] : '60s',
+                'notes' => is_string($exercise['notes'] ?? null) ? $exercise['notes'] : '',
+            ];
+        }
+
+        if ($normalized === []) {
+            throw new RuntimeException('Recommendation exercises are invalid for day update.');
+        }
+
+        return array_slice($normalized, 0, 5);
     }
 }

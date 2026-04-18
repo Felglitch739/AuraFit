@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useMemo, type FormEvent } from 'react';
 import { toast } from 'sonner';
+import DailyLoading from '@/components/fitness/DailyLoading';
 import type { WorkoutExercise } from '@/types/fitness';
 
 type CheckinResult = {
@@ -148,6 +149,18 @@ export default function CheckInPage({
     const circumference = 283;
     const strokeOffset =
         circumference - (normalizedScore / 100) * circumference;
+
+    if (form.processing) {
+        return (
+            <>
+                <Head title="Check-in" />
+
+                <div className="space-y-6">
+                    <DailyLoading />
+                </div>
+            </>
+        );
+    }
 
     return (
         <>
