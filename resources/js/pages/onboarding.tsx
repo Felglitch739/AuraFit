@@ -45,6 +45,10 @@ type OnboardingData = {
     };
 };
 
+type OnboardingPageProps = {
+    initialData?: Partial<OnboardingData>;
+};
+
 const activityLevels: {
     value: ActivityLevel;
     label: string;
@@ -154,29 +158,29 @@ const sportIconColors: Record<(typeof sportsOptions)[number], string> = {
     Others: 'bg-pink-500/20 text-pink-300',
 };
 
-export default function OnboardingPage() {
+export default function OnboardingPage({ initialData }: OnboardingPageProps) {
     const [currentStep, setCurrentStep] = useState(1);
     const [data, setData] = useState<OnboardingData>({
-        activity_level: 'moderate',
-        fitness_goal: 'recomposition',
-        workout_mode: 'generate',
-        age: '',
-        weight_value: '',
-        weight_unit: 'kg',
-        height_unit: 'cm',
-        height_cm: '',
-        height_ft: '',
-        height_in: '',
-        sports_practiced: ['None'],
-        sports_other: '',
+        activity_level: initialData?.activity_level ?? 'moderate',
+        fitness_goal: initialData?.fitness_goal ?? 'recomposition',
+        workout_mode: initialData?.workout_mode ?? 'generate',
+        age: initialData?.age ?? '',
+        weight_value: initialData?.weight_value ?? '',
+        weight_unit: initialData?.weight_unit ?? 'kg',
+        height_unit: initialData?.height_unit ?? 'cm',
+        height_cm: initialData?.height_cm ?? '',
+        height_ft: initialData?.height_ft ?? '',
+        height_in: initialData?.height_in ?? '',
+        sports_practiced: initialData?.sports_practiced ?? ['None'],
+        sports_other: initialData?.sports_other ?? '',
         custom_routine: {
-            Monday: '',
-            Tuesday: '',
-            Wednesday: '',
-            Thursday: '',
-            Friday: '',
-            Saturday: '',
-            Sunday: '',
+            Monday: initialData?.custom_routine?.Monday ?? '',
+            Tuesday: initialData?.custom_routine?.Tuesday ?? '',
+            Wednesday: initialData?.custom_routine?.Wednesday ?? '',
+            Thursday: initialData?.custom_routine?.Thursday ?? '',
+            Friday: initialData?.custom_routine?.Friday ?? '',
+            Saturday: initialData?.custom_routine?.Saturday ?? '',
+            Sunday: initialData?.custom_routine?.Sunday ?? '',
         },
     });
 
@@ -304,8 +308,8 @@ export default function OnboardingPage() {
                 <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(var(--color-foreground)_1px,transparent_1px)] bg-size-[56px_56px] opacity-[0.03]" />
 
                 {/* Main content */}
-                <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-8">
-                    <div className="w-full max-w-2xl">
+                <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-2 py-6 sm:px-4 sm:py-8">
+                    <div className="w-full max-w-none md:max-w-3xl">
                         {/* Header */}
                         <div className="mb-8 text-center">
                             <div className="mb-4 flex items-center justify-center gap-2">
@@ -338,7 +342,7 @@ export default function OnboardingPage() {
                         </div>
 
                         {/* Content */}
-                        <div className="glass-panel rounded-2xl border border-glass-border bg-glass-panel p-8 backdrop-blur-xl">
+                        <div className="glass-panel rounded-2xl border border-glass-border bg-glass-panel p-4 backdrop-blur-xl sm:p-6 md:p-8">
                             {/* Step 1: Lifestyle */}
                             {currentStep === 1 && (
                                 <div className="animate-in space-y-6 duration-300 fade-in">

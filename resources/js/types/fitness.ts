@@ -43,9 +43,51 @@ export type RecommendationData = {
     message?: string;
 };
 
+export type NutritionMeal = {
+    time: string;
+    name: string;
+    description: string;
+    calories: number;
+};
+
+export type NutritionDay = {
+    day: string;
+    focus: string;
+    meals: NutritionMeal[];
+    notes: string[];
+};
+
+export type NutritionPlanData = {
+    goal: FitnessGoal;
+    title: string;
+    summary: string;
+    targetCalories: number;
+    macroTargets: {
+        proteinGrams: number;
+        carbsGrams: number;
+        fatGrams: number;
+    };
+    hydrationLiters: number;
+    days: NutritionDay[];
+    notes: string[];
+    nutritionTip: string;
+};
+
 export type DashboardViewModel = {
     weeklyPlan?: WeeklyPlanData | null;
     dailyCheckIn?: DailyCheckInValues | null;
     recommendation?: RecommendationData | null;
     currentDayLabel?: string;
+};
+
+export type NutritionViewModel = {
+    goal?: FitnessGoal | null;
+    nutritionPlan?: NutritionPlanData | null;
+    nutritionTip?: string | null;
+    hasNutritionPlan?: boolean;
+    currentDayLabel?: string;
+    nutritionFormDefaults?: {
+        goal: FitnessGoal;
+        use_mock: boolean;
+    };
 };

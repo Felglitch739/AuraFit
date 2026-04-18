@@ -13,13 +13,14 @@ Route::inertia('/', 'welcome', [
 ])->name('home');
 
 Route::middleware(['auth'])->group(function () {
-    Route::inertia('onboarding', 'onboarding')->name('onboarding');
+    Route::get('onboarding', [OnboardingController::class, 'index'])->name('onboarding');
     Route::post('onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('nutrition', [DashboardController::class, 'nutrition'])->name('nutrition');
+    Route::post('nutrition', [DashboardController::class, 'storeNutrition'])->name('nutrition.store');
 
     Route::resource('check-in', DailyLogController::class)
         ->only(['index', 'store']);

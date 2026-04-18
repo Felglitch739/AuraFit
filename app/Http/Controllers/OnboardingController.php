@@ -3,11 +3,50 @@
 namespace App\Http\Controllers;
 
 use Carbon\Carbon;
+use Inertia\Inertia;
+use Inertia\Response;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 
 class OnboardingController extends Controller
 {
+    public function index(Request $request): Response
+    {
+        $user = $request->user();
+        $heightCm = (float) ($user->height_cm ?? 0);
+        $heightInches = $heightCm > 0 ? (int) round($heightCm / 2.54) : 0;
+
+        return Inertia::render('onboarding', [
+            'initialData' => [
+                'activity_level' => $user->activity_level ?? 'moderate',
+                'fitness_goal' => $user->fitness_goal ?? 'recomposition',
+                'workout_mode' => $user->workout_mode ?? 'generate',
+                'age' => $user->age,
+                'weight_value' => $user->weight_kg,
+                'weight_unit' => 'kg',
+                'height_unit' => 'cm',
+                'height_cm' => $user->height_cm,
+                'height_ft' => $heightInches > 0 ? intdiv($heightInches, 12) : null,
+                'height_in' => $heightInches > 0 ? $heightInches % 12 : null,
+                'sports_practiced' => is_array($user->sports_practiced) && count($user->sports_practiced) > 0
+                    ? $user->sports_practiced
+                    : ['None'],
+                'sports_other' => $user->sports_other ?? '',
+                'custom_routine' => is_array($user->onboarding_custom_routine)
+                    ? $user->onboarding_custom_routine
+                    : [
+                        'Monday' => '',
+                        'Tuesday' => '',
+                        'Wednesday' => '',
+                        'Thursday' => '',
+                        'Friday' => '',
+                        'Saturday' => '',
+                        'Sunday' => '',
+                    ],
+            ],
+        ]);
+    }
+
     /**
      * Store the onboarding data for the authenticated user.
      */
