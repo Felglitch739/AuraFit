@@ -8,53 +8,24 @@ use App\Models\Recommendation;
 use App\Models\User;
 use App\Services\Ai\OpenAiClientService;
 use App\Services\Ai\UserProfilePromptBuilder;
-use Carbon\Carbon;
-use Throwable;
+use RuntimeException;
 
 class NutritionPlanService
 {
     public function __construct(
         private readonly OpenAiClientService $openAiClient,
         private readonly UserProfilePromptBuilder $profilePromptBuilder,
+        private readonly \App\Services\Ai\PromptTemplateService $promptTemplateService,
     ) {
-    }
-
-    public function generateMock(User $user, ?DailyLog $dailyLog = null, ?Recommendation $recommendation = null): array
-    {
-        $goal = $this->resolveGoal($user);
-        $calorieTarget = $this->resolveCalories($goal, $dailyLog, $user);
-        $macroTargets = $this->resolveMacronutrients($goal, $calorieTarget);
-
-        return [
-            'goal' => $goal,
-            'title' => 'Weekly fuel plan',
-            'summary' => 'A practical nutrition structure that supports training, recovery, and consistent energy.',
-            'targetCalories' => $calorieTarget,
-            'macroTargets' => $macroTargets,
-            'hydrationLiters' => $goal === 'cut' ? 2.8 : 3.2,
-            'days' => $this->buildMockDays($goal),
-            'notes' => [
-                'Build each meal around a clear protein source.',
-                'Increase carbohydrates on harder training days.',
-                'Keep hydration steady through the day, not only around workouts.',
-            ],
-            'nutritionTip' => $this->resolveNutritionTip($goal, $recommendation),
-            'daily_log_id' => $dailyLog?->id,
-            'recommendation_id' => $recommendation?->id,
-        ];
     }
 
     public function generateUsingAiOrFallback(User $user, ?DailyLog $dailyLog = null, ?Recommendation $recommendation = null): array
     {
         $goal = $this->resolveGoal($user);
 
-        try {
-            $payload = $this->generateUsingAi($user, $dailyLog, $recommendation, $goal);
+        $payload = $this->generateUsingAi($user, $dailyLog, $recommendation, $goal);
 
-            return $this->normalize($payload, $user, $dailyLog, $recommendation, $goal);
-        } catch (Throwable) {
-            return $this->generateMock($user, $dailyLog, $recommendation);
-        }
+        return $this->normalize($payload, $user, $dailyLog, $recommendation, $goal);
     }
 
     public function saveForUser(User $user, array $payload, ?DailyLog $dailyLog = null, ?Recommendation $recommendation = null): NutritionPlan
@@ -81,61 +52,17 @@ class NutritionPlanService
 
     private function generateUsingAi(User $user, ?DailyLog $dailyLog, ?Recommendation $recommendation, string $goal): array
     {
-        $systemPrompt = <<<PROMPT
-You are an expert sports nutrition coach.
-Return only valid JSON and use this exact shape:
-{
-  "goal": "bulk|cut|maintain",
-  "title": "...",
-  "summary": "...",
-  "targetCalories": 0,
-  "macroTargets": {
-    "proteinGrams": 0,
-    "carbsGrams": 0,
-    "fatGrams": 0
-  },
-  "hydrationLiters": 0,
-  "days": [
-    {
-      "day": "Monday",
-      "focus": "...",
-      "meals": [
-        {"time": "Breakfast", "name": "...", "description": "...", "calories": 0}
-      ],
-      "notes": ["...", "..."]
-    }
-  ],
-  "notes": ["...", "...", "..."]
-}
-Rules:
-- Always return exactly 7 days from Monday to Sunday.
-- Keep food suggestions realistic, accessible, and sports-focused.
-- Match calories and macros to the goal and activity level.
-- Increase carbohydrate emphasis for heavier training or performance days.
-- Use sports_practiced, sports_schedule, and sports_intensity to periodize nutrition across the week (hard sport day vs light/recovery day).
-- If sports_intensity is present, high days (3) must have noticeably higher carbs and total calories than low days (1), while preserving the goal.
-- When the user trains a specific sport (for example swimming), make meal timing and carb loading reflect that sport demand instead of generic gym bulking/cutting templates.
-- Vary daily meal focus based on the scheduled sport session; do not repeat the same generic structure every day.
-- Include practical pre-session and post-session fueling guidance on days with sport practice.
-- Keep explanations short and practical.
-- If the user is in custom workout mode, keep the nutrition style consistent with their habits and sports background.
-PROMPT;
+        $systemPrompt = $this->promptTemplateService->load('ai/nutrition.system.txt');
 
-        $userPrompt = implode("\n", [
-            $this->profilePromptBuilder->build($user),
-            'Nutrition target goal: ' . $goal,
-            $dailyLog ? sprintf(
-                'Latest recovery input: sleep_hours=%.1f, stress_level=%d, soreness=%d.',
-                (float) $dailyLog->sleep_hours,
-                (int) $dailyLog->stress_level,
-                (int) $dailyLog->soreness,
-            ) : 'No daily check-in is available yet.',
-            $recommendation ? 'Latest workout recommendation readiness score: ' . (int) $recommendation->readiness_score : 'No recommendation has been generated yet.',
-            'Build a 7-day meal plan with goal-appropriate calories, macros, hydration guidance, and meal timing.',
-            'Use sports_practiced, sports_schedule, and sports_intensity to set daily fueling load and meal timing (especially around training sessions).',
-            'Make carb and calorie distribution visibly responsive to intensity: low < moderate < high when applicable.',
-            'Each day should have 3 to 4 meals and one short recovery/performance note.',
-            'Avoid generic bodybuilding-only recommendations when the user is sport-specific.',
+        $userPrompt = $this->promptTemplateService->render('ai/nutrition.user.txt', [
+            'profile_context' => $this->profilePromptBuilder->build($user),
+            'goal' => $goal,
+            'sleep_hours' => $dailyLog ? number_format((float) $dailyLog->sleep_hours, 1, '.', '') : 'n/a',
+            'stress_level' => $dailyLog ? (string) (int) $dailyLog->stress_level : 'n/a',
+            'soreness' => $dailyLog ? (string) (int) $dailyLog->soreness : 'n/a',
+            'readiness_line' => $recommendation
+                ? 'Latest workout recommendation readiness score: ' . (int) $recommendation->readiness_score . '.'
+                : 'No recommendation has been generated yet.',
         ]);
 
         return $this->openAiClient->chatJson($systemPrompt, $userPrompt);
@@ -143,24 +70,34 @@ PROMPT;
 
     private function normalize(array $payload, User $user, ?DailyLog $dailyLog, ?Recommendation $recommendation, string $goal): array
     {
-        $fallback = $this->generateMock($user, $dailyLog, $recommendation);
         $days = $payload['days'] ?? [];
 
         if (!is_array($days)) {
-            $days = [];
+            throw new RuntimeException('Nutrition response is missing days.');
         }
 
         $normalizedDays = [];
 
         foreach ($days as $day) {
             if (!is_array($day) || !is_string($day['day'] ?? null) || !is_string($day['focus'] ?? null)) {
-                continue;
+                throw new RuntimeException('Nutrition day entry is invalid.');
             }
 
             $meals = [];
             foreach (($day['meals'] ?? []) as $meal) {
                 if (!is_array($meal) || !is_string($meal['name'] ?? null) || trim($meal['name']) === '') {
-                    continue;
+                    throw new RuntimeException('Nutrition meal entry is invalid.');
+                }
+
+                $examples = [];
+                foreach (($meal['examples'] ?? []) as $example) {
+                    if (is_string($example) && trim($example) !== '') {
+                        $examples[] = $example;
+                    }
+                }
+
+                if (count($examples) < 2) {
+                    throw new RuntimeException('Nutrition meal examples must contain at least 2 items.');
                 }
 
                 $meals[] = [
@@ -168,96 +105,68 @@ PROMPT;
                     'name' => $meal['name'],
                     'description' => is_string($meal['description'] ?? null) ? $meal['description'] : '',
                     'calories' => isset($meal['calories']) ? (int) $meal['calories'] : 0,
+                    'examples' => array_slice($examples, 0, 3),
                 ];
             }
 
             $normalizedDays[] = [
                 'day' => $day['day'],
                 'focus' => $day['focus'],
-                'meals' => $meals !== [] ? $meals : ($fallback['days'][count($normalizedDays)]['meals'] ?? []),
+                'meals' => $meals,
                 'notes' => $this->normalizeNotes($day['notes'] ?? []),
             ];
         }
 
         if (count($normalizedDays) !== 7) {
-            return $fallback;
+            throw new RuntimeException('Nutrition response must contain exactly 7 days.');
         }
 
-        $macroTargets = is_array($payload['macroTargets'] ?? null) ? $payload['macroTargets'] : $fallback['macroTargets'];
+        if (!isset($payload['macroTargets']) || !is_array($payload['macroTargets'])) {
+            throw new RuntimeException('Nutrition macro targets are invalid.');
+        }
+
+        $macroTargets = $payload['macroTargets'];
+
+        if (!isset($payload['goal'], $payload['title'], $payload['summary'], $payload['targetCalories'], $payload['hydrationLiters'], $payload['notes'], $payload['nutritionTip'])) {
+            throw new RuntimeException('Nutrition response is missing required fields.');
+        }
+
+        if (!is_array($payload['notes']) || count($payload['notes']) < 3) {
+            throw new RuntimeException('Nutrition notes must contain at least 3 items.');
+        }
+
+        $cleanNotes = [];
+        foreach ($payload['notes'] as $note) {
+            if (!is_string($note) || trim($note) === '') {
+                continue;
+            }
+
+            $cleanNotes[] = $note;
+        }
+
+        if (count($cleanNotes) < 3) {
+            throw new RuntimeException('Nutrition notes must contain at least 3 strings.');
+        }
 
         return [
             'goal' => in_array(($payload['goal'] ?? ''), ['bulk', 'cut', 'maintain'], true)
                 ? $payload['goal']
                 : $goal,
-            'title' => is_string($payload['title'] ?? null) && trim($payload['title']) !== ''
-                ? $payload['title']
-                : $fallback['title'],
-            'summary' => is_string($payload['summary'] ?? null) && trim($payload['summary']) !== ''
-                ? $payload['summary']
-                : $fallback['summary'],
-            'targetCalories' => isset($payload['targetCalories']) ? (int) $payload['targetCalories'] : $fallback['targetCalories'],
+            'title' => (string) $payload['title'],
+            'summary' => (string) $payload['summary'],
+            'targetCalories' => (int) $payload['targetCalories'],
             'macroTargets' => [
-                'proteinGrams' => isset($macroTargets['proteinGrams']) ? (int) $macroTargets['proteinGrams'] : $fallback['macroTargets']['proteinGrams'],
-                'carbsGrams' => isset($macroTargets['carbsGrams']) ? (int) $macroTargets['carbsGrams'] : $fallback['macroTargets']['carbsGrams'],
-                'fatGrams' => isset($macroTargets['fatGrams']) ? (int) $macroTargets['fatGrams'] : $fallback['macroTargets']['fatGrams'],
+                'proteinGrams' => (int) ($macroTargets['proteinGrams'] ?? 0),
+                'carbsGrams' => (int) ($macroTargets['carbsGrams'] ?? 0),
+                'fatGrams' => (int) ($macroTargets['fatGrams'] ?? 0),
             ],
-            'hydrationLiters' => isset($payload['hydrationLiters']) ? (float) $payload['hydrationLiters'] : $fallback['hydrationLiters'],
+            'hydrationLiters' => (float) $payload['hydrationLiters'],
             'days' => $normalizedDays,
-            'notes' => $this->normalizeNotes($payload['notes'] ?? $fallback['notes']),
-            'nutritionTip' => is_string($payload['nutritionTip'] ?? null) && trim($payload['nutritionTip']) !== ''
-                ? $payload['nutritionTip']
-                : $fallback['nutritionTip'],
+            'notes' => array_values(array_slice($cleanNotes, 0, 3)),
+            'nutritionTip' => (string) $payload['nutritionTip'],
             'daily_log_id' => $dailyLog?->id,
             'recommendation_id' => $recommendation?->id,
         ];
-    }
-
-    private function buildMockDays(string $goal): array
-    {
-        $dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        $dayTemplates = [
-            'bulk' => ['Protein-dense breakfast', 'Balanced lunch', 'Recovery dinner'],
-            'cut' => ['High-protein breakfast', 'Lean lunch', 'Light dinner'],
-            'maintain' => ['Balanced breakfast', 'Training lunch', 'Recovery dinner'],
-        ];
-        $template = $dayTemplates[$goal] ?? $dayTemplates['maintain'];
-
-        $days = [];
-
-        foreach ($dayNames as $index => $dayName) {
-            $days[] = [
-                'day' => $dayName,
-                'focus' => $goal === 'cut'
-                    ? 'Fuel lightly and keep energy steady'
-                    : ($goal === 'bulk' ? 'Support muscle gain and performance' : 'Maintain energy and recovery balance'),
-                'meals' => [
-                    [
-                        'time' => 'Breakfast',
-                        'name' => $template[0],
-                        'description' => 'Protein + fiber to start the day with stable energy.',
-                        'calories' => $goal === 'cut' ? 380 : 520,
-                    ],
-                    [
-                        'time' => 'Lunch',
-                        'name' => $template[1],
-                        'description' => 'Main meal with enough carbs to support training.',
-                        'calories' => $goal === 'cut' ? 520 : 720,
-                    ],
-                    [
-                        'time' => 'Dinner',
-                        'name' => $template[2],
-                        'description' => 'Recover with protein, vegetables, and a controlled carb portion.',
-                        'calories' => $goal === 'cut' ? 420 : 650,
-                    ],
-                ],
-                'notes' => [
-                    $goal === 'cut' ? 'Keep portions controlled and protein high.' : 'Stay consistent with meal timing.',
-                    $goal === 'bulk' ? 'Add an extra snack on hard training days.' : 'Hydrate before and after training.',
-                ],
-            ];
-        }
-
-        return $days;
     }
 
     private function resolveGoal(User $user): string
@@ -329,26 +238,10 @@ PROMPT;
         };
     }
 
-    private function resolveNutritionTip(string $goal, ?Recommendation $recommendation): string
-    {
-        if ($recommendation?->nutrition_tip) {
-            return $recommendation->nutrition_tip;
-        }
-
-        return match ($goal) {
-            'bulk' => 'Use an extra carb-based snack before or after training to support recovery.',
-            'cut' => 'Prioritize lean protein and vegetables, and keep liquid calories low.',
-            default => 'Keep meals balanced and hydrate consistently across the day.',
-        };
-    }
-
     private function normalizeNotes(mixed $notes): array
     {
         if (!is_array($notes) || $notes === []) {
-            return [
-                'Stay consistent with meal timing.',
-                'Hydrate well around training.',
-            ];
+            throw new RuntimeException('Nutrition notes are missing.');
         }
 
         $clean = [];
@@ -361,9 +254,10 @@ PROMPT;
             $clean[] = $note;
         }
 
-        return array_slice($clean !== [] ? $clean : [
-            'Stay consistent with meal timing.',
-            'Hydrate well around training.',
-        ], 0, 3);
+        if ($clean === []) {
+            throw new RuntimeException('Nutrition notes are invalid.');
+        }
+
+        return array_slice($clean, 0, 3);
     }
 }

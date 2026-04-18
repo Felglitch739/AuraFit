@@ -18,7 +18,6 @@ class NutritionPlanRequest extends FormRequest
     {
         return [
             'goal' => ['nullable', 'in:bulk,cut,maintain'],
-            'use_mock' => ['nullable', 'boolean'],
         ];
     }
 }

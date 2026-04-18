@@ -26,7 +26,6 @@ export default function Dashboard({
 }: DashboardProps) {
     const weeklyPlanForm = useForm({
         goal: weeklyPlan?.goal ?? 'maintain',
-        use_mock: false,
     });
 
     const readinessScore = recommendation?.readinessScore ?? null;

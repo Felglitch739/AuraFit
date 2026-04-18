@@ -6,6 +6,11 @@ use App\Models\User;
 
 class UserProfilePromptBuilder
 {
+    public function __construct(
+        private readonly \App\Services\Ai\PromptTemplateService $promptTemplateService,
+    ) {
+    }
+
     public function build(User $user): string
     {
         $goal = $this->normalizeGoal($user->goal);
@@ -31,22 +36,21 @@ class UserProfilePromptBuilder
             'custom_routine' => $this->formatCustomRoutine($user->onboarding_custom_routine),
         ];
 
-        return implode("\n", [
-            'User profile context:',
-            '- Primary goal: ' . $profile['goal'],
-            '- Fitness goal: ' . $profile['fitness_goal'],
-            '- Activity level: ' . $profile['activity_level'],
-            '- Workout mode: ' . $profile['workout_mode'],
-            '- Training style: ' . $profile['training_style'],
-            '- Age: ' . $profile['age'],
-            '- Weight (kg): ' . $profile['weight_kg'],
-            '- Height (cm): ' . $profile['height_cm'],
-            '- Sports practiced: ' . $profile['sports_practiced'],
-            '- Sports schedule / training days: ' . $profile['sports_schedule'],
-            '- Sports intensity by day (1=low, 2=moderate, 3=high): ' . $profile['sports_intensity'],
-            '- Other sports: ' . $profile['sports_other'],
-            '- Onboarding completed: ' . $profile['onboarding_completed'],
-            '- Custom routine / weekly preference: ' . $profile['custom_routine'],
+        return $this->promptTemplateService->render('ai/profile-context.txt', [
+            'goal' => $profile['goal'],
+            'fitness_goal' => $profile['fitness_goal'],
+            'activity_level' => $profile['activity_level'],
+            'workout_mode' => $profile['workout_mode'],
+            'training_style' => $profile['training_style'],
+            'age' => $profile['age'],
+            'weight_kg' => $profile['weight_kg'],
+            'height_cm' => $profile['height_cm'],
+            'sports_practiced' => $profile['sports_practiced'],
+            'sports_schedule' => $profile['sports_schedule'],
+            'sports_intensity' => $profile['sports_intensity'],
+            'sports_other' => $profile['sports_other'],
+            'onboarding_completed' => $profile['onboarding_completed'],
+            'custom_routine' => $profile['custom_routine'],
         ]);
     }
 

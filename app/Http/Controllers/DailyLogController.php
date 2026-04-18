@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\DailyLogRequest;
 use App\Services\Checkins\DailyCheckinService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class DailyLogController extends Controller
 {
@@ -28,41 +30,53 @@ class DailyLogController extends Controller
 
     public function store(DailyLogRequest $request, DailyCheckinService $dailyCheckinService): RedirectResponse
     {
-        $payload = [
-            ...$request->validated(),
-            'user_id' => $request->user()->id,
-        ];
+        try {
+            DB::transaction(function () use ($request, $dailyCheckinService): void {
+                $payload = [
+                    ...$request->validated(),
+                    'user_id' => $request->user()->id,
+                ];
 
-        $dailyLog = $dailyCheckinService->createDailyLog($payload);
-        $recommendationPayload = $dailyCheckinService->generateRecommendationUsingAiOrFallback(
-            $dailyLog,
-            $request->user(),
-        );
-        $dailyCheckinService->saveRecommendation($dailyLog, $recommendationPayload);
+                $dailyLog = $dailyCheckinService->createDailyLog($payload);
+                $recommendationPayload = $dailyCheckinService->generateRecommendationUsingAi(
+                    $dailyLog,
+                    $request->user(),
+                );
+                $dailyCheckinService->saveRecommendation($dailyLog, $recommendationPayload);
+            });
+        } catch (Throwable) {
+            return back()->withErrors([
+                'check_in' => 'We could not generate your recommendation right now. No fallback content was created.',
+            ])->withInput();
+        }
 
         return redirect()->route('check-in.index');
     }
 
-    public function mock(DailyLogRequest $request, DailyCheckinService $dailyCheckinService): JsonResponse
+    public function reduceLoad(Request $request, DailyCheckinService $dailyCheckinService): RedirectResponse
     {
-        $validated = $request->validate([
-            'user_id' => ['required', 'integer', 'exists:users,id'],
-            'sleep_hours' => ['required', 'numeric', 'min:0', 'max:24'],
-            'stress_level' => ['required', 'integer', 'min:1', 'max:10'],
-            'soreness' => ['required', 'integer', 'min:1', 'max:10'],
-        ]);
+        $user = $request->user();
+        $latestDailyLog = $user->dailyLogs()->latest()->first();
 
-        $dailyLog = $dailyCheckinService->createDailyLog($validated);
-        $recommendationPayload = $dailyCheckinService->generateRecommendationUsingAiOrFallback(
-            $dailyLog,
-            $dailyLog->user,
-        );
-        $recommendation = $dailyCheckinService->saveRecommendation($dailyLog, $recommendationPayload);
+        if (!$latestDailyLog) {
+            return redirect()->route('check-in.index');
+        }
 
-        return response()->json([
-            'message' => 'Daily check-in saved successfully.',
-            'daily_log' => $dailyLog,
-            'mock_recommendation' => $dailyCheckinService->toCheckinResult($recommendation),
-        ], 201);
+        try {
+            DB::transaction(function () use ($dailyCheckinService, $latestDailyLog, $user): void {
+                $recommendationPayload = $dailyCheckinService->generateRecommendationUsingAi(
+                    $latestDailyLog,
+                    $user,
+                    'reduced',
+                );
+                $dailyCheckinService->saveRecommendation($latestDailyLog, $recommendationPayload);
+            });
+        } catch (Throwable) {
+            return back()->withErrors([
+                'check_in' => 'We could not regenerate your reduced-load recommendation right now. No fallback content was created.',
+            ]);
+        }
+
+        return redirect()->route('check-in.index')->with('success', 'Today\'s load has been reduced and regenerated.');
     }
 }

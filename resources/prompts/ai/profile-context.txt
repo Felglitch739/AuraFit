@@ -1,0 +1,15 @@
+User profile context:
+- Primary goal: :goal
+- Fitness goal: :fitness_goal
+- Activity level: :activity_level
+- Workout mode: :workout_mode
+- Training style: :training_style
+- Age: :age
+- Weight (kg): :weight_kg
+- Height (cm): :height_cm
+- Sports practiced: :sports_practiced
+- Sports schedule / training days: :sports_schedule
+- Sports intensity by day (1=low, 2=moderate, 3=high): :sports_intensity
+- Other sports: :sports_other
+- Onboarding completed: :onboarding_completed
+- Custom routine / weekly preference: :custom_routine

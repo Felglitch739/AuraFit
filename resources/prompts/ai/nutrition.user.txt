@@ -1,0 +1,10 @@
+:profile_context
+Nutrition target goal: :goal
+Latest recovery input: sleep_hours=:sleep_hours, stress_level=:stress_level, soreness=:soreness.
+:readiness_line
+Build a 7-day meal plan with goal-appropriate calories, macros, hydration guidance, and meal timing.
+Use sports_practiced, sports_schedule, and sports_intensity to set daily fueling load and meal timing (especially around training sessions).
+Make carb and calorie distribution visibly responsive to intensity: low < moderate < high when applicable.
+Each day should have 3 to 4 meals and one short recovery/performance note.
+Avoid generic bodybuilding-only recommendations when the user is sport-specific.
+For every meal, include 2 to 3 real platillo ideas in an `examples` array so the UI can expand them on click.

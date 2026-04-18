@@ -8,8 +8,10 @@ use App\Services\WeeklyPlans\WeeklyPlanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class WeeklyPlanController extends Controller
 {
@@ -37,11 +39,23 @@ class WeeklyPlanController extends Controller
             $user->update(['goal' => $goal]);
         }
 
-        $planPayload = $request->boolean('use_mock')
-            ? $weeklyPlanService->generateMock($goal)
-            : $weeklyPlanService->generateUsingAiOrFallback($user);
+        try {
+            $weeklyPlan = DB::transaction(function () use ($user, $weeklyPlanService) {
+                $planPayload = $weeklyPlanService->generateUsingAiOrFallback($user);
 
-        $weeklyPlan = $weeklyPlanService->saveForUser($user, $planPayload);
+                return $weeklyPlanService->saveForUser($user, $planPayload);
+            });
+        } catch (Throwable) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'message' => 'We could not generate the weekly plan right now. No fallback content was created.',
+                ], 500);
+            }
+
+            return back()->withErrors([
+                'weekly_plan' => 'We could not generate the weekly plan right now. No fallback content was created.',
+            ]);
+        }
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -62,16 +76,4 @@ class WeeklyPlanController extends Controller
         ]);
     }
 
-    public function mock(Request $request, WeeklyPlanService $weeklyPlanService): JsonResponse
-    {
-        $validated = $request->validate([
-            'goal' => ['nullable', 'in:bulk,cut,maintain'],
-        ]);
-
-        $goal = $validated['goal'] ?? 'maintain';
-
-        return response()->json([
-            'data' => $weeklyPlanService->generateMock($goal),
-        ]);
-    }
 }

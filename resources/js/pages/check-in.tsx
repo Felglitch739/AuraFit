@@ -15,6 +15,7 @@ import type { WorkoutExercise } from '@/types/fitness';
 type CheckinResult = {
     readiness_score?: number;
     message?: string;
+    nutrition_tip?: string;
     workout_json?: {
         exercises?: WorkoutExercise[];
     };
@@ -24,6 +25,7 @@ type RecommendationState = {
     score: number;
     message: string;
     focusBlocks: string[];
+    nutritionTip?: string;
 };
 
 type CheckInPageProps = {
@@ -44,6 +46,7 @@ export default function CheckInPage({
         soreness: checkinFormDefaults?.soreness ?? 3,
         stress_level: checkinFormDefaults?.stress_level ?? 4,
     });
+    const reduceLoadForm = useForm({});
 
     const result: RecommendationState | null = checkinResult
         ? {
@@ -58,6 +61,7 @@ export default function CheckInPage({
                   'Back and biceps activation with controlled tempo',
                   'Core and mobility finish',
               ],
+              nutritionTip: checkinResult.nutrition_tip,
           }
         : null;
 
@@ -124,6 +128,18 @@ export default function CheckInPage({
                 toast.error(
                     `Validation failed. Local readiness estimate: ${fallbackScore}/100.`,
                 );
+            },
+        });
+    };
+
+    const acceptReducedLoad = () => {
+        reduceLoadForm.post('/check-in/reduce-load', {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('Reduced-load plan regenerated for today.');
+            },
+            onError: () => {
+                toast.error('Could not regenerate the reduced-load plan.');
             },
         });
     };
@@ -311,6 +327,41 @@ export default function CheckInPage({
                                 </div>
                             ))}
                         </div>
+
+                        {result?.nutritionTip ? (
+                            <div className="mt-6 rounded-xl border border-green-400/30 bg-green-500/10 p-4">
+                                <p className="text-sm font-semibold text-green-100">
+                                    Nutrition adjustment
+                                </p>
+                                <p className="mt-1 text-sm text-green-100/80">
+                                    {result.nutritionTip}
+                                </p>
+                            </div>
+                        ) : null}
+
+                        {result && result.score < 50 ? (
+                            <div className="mt-6 rounded-xl border border-orange-400/30 bg-orange-500/10 p-4">
+                                <p className="text-sm font-semibold text-orange-100">
+                                    You are not at 100% today.
+                                </p>
+                                <p className="mt-1 text-sm text-orange-100/80">
+                                    If you accept a lower load, we will
+                                    regenerate today&apos;s training and
+                                    nutrition guidance with a lighter
+                                    recovery-first plan.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={acceptReducedLoad}
+                                    disabled={reduceLoadForm.processing}
+                                    className="mt-4 inline-flex items-center justify-center rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:opacity-60"
+                                >
+                                    {reduceLoadForm.processing
+                                        ? 'Regenerating...'
+                                        : 'Accept lower load today'}
+                                </button>
+                            </div>
+                        ) : null}
                     </article>
                 </section>
             </div>

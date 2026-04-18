@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Nutrition\NutritionPlanService;
+use App\Services\WeeklyPlans\WeeklyPlanService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Throwable;
 
 class OnboardingController extends Controller
 {
@@ -56,8 +60,11 @@ class OnboardingController extends Controller
     /**
      * Store the onboarding data for the authenticated user.
      */
-    public function store(Request $request): RedirectResponse
-    {
+    public function store(
+        Request $request,
+        WeeklyPlanService $weeklyPlanService,
+        NutritionPlanService $nutritionPlanService,
+    ): RedirectResponse {
         $validated = $request->validate([
             'activity_level' => ['required', 'in:sedentary,light,moderate,advanced'],
             'fitness_goal' => ['required', 'in:strength,definition,recomposition,maintenance'],
@@ -112,33 +119,43 @@ class OnboardingController extends Controller
         }
 
         $user = $request->user();
-        $customRoutine = $validated['workout_mode'] === 'custom'
-            ? $this->normalizeCustomRoutine($validated['custom_routine'] ?? [])
-            : null;
 
-        $user->update([
-            'goal' => $this->mapFitnessGoalToGoal($validated['fitness_goal']),
-            'activity_level' => $validated['activity_level'],
-            'fitness_goal' => $validated['fitness_goal'],
-            'workout_mode' => $validated['workout_mode'],
-            'age' => (int) $validated['age'],
-            'weight_kg' => $weightKg,
-            'height_cm' => $heightCm,
-            'sports_practiced' => $sportsData['sports_practiced'],
-            'sports_schedule' => $sportsSchedule,
-            'sports_intensity' => $sportsIntensity,
-            'sports_other' => $sportsData['sports_other'],
-            'onboarding_custom_routine' => $customRoutine,
-            'onboarding_completed_at' => Carbon::now(),
-        ]);
+        try {
+            DB::transaction(function () use ($user, $validated, $weightKg, $heightCm, $sportsData, $sportsSchedule, $sportsIntensity, $weeklyPlanService, $nutritionPlanService, ): void {
+                $customRoutine = $validated['workout_mode'] === 'custom'
+                    ? $this->normalizeCustomRoutine($validated['custom_routine'] ?? [])
+                    : null;
 
-        // If AI-generated mode, trigger plan generation
-        if ($validated['workout_mode'] === 'generate') {
-            // TODO: Trigger AI plan generation service here
-            // $weeklyPlanService->generateUsingAiOrFallback($mappedGoal);
+                $user->update([
+                    'goal' => $this->mapFitnessGoalToGoal($validated['fitness_goal']),
+                    'activity_level' => $validated['activity_level'],
+                    'fitness_goal' => $validated['fitness_goal'],
+                    'workout_mode' => $validated['workout_mode'],
+                    'age' => (int) $validated['age'],
+                    'weight_kg' => $weightKg,
+                    'height_cm' => $heightCm,
+                    'sports_practiced' => $sportsData['sports_practiced'],
+                    'sports_schedule' => $sportsSchedule,
+                    'sports_intensity' => $sportsIntensity,
+                    'sports_other' => $sportsData['sports_other'],
+                    'onboarding_custom_routine' => $customRoutine,
+                    'onboarding_completed_at' => Carbon::now(),
+                ]);
+
+                $user->refresh();
+
+                $weeklyPlan = $weeklyPlanService->generateUsingAiOrFallback($user);
+                $weeklyPlanService->saveForUser($user, $weeklyPlan);
+
+                $nutritionPlan = $nutritionPlanService->generateUsingAiOrFallback($user);
+                $nutritionPlanService->saveForUser($user, $nutritionPlan);
+            });
+        } catch (Throwable) {
+            return back()->withErrors([
+                'onboarding' => 'We could not generate your plans right now. No data was saved from this generation step.',
+            ])->withInput();
         }
 
-        // Redirect to dashboard after onboarding
         return redirect()->route('dashboard')->with('success', 'Onboarding completed successfully!');
     }
 

@@ -1,0 +1,5 @@
+:profile_context
+Current check-in: sleep_hours=:sleep_hours, stress_level=:stress_level, soreness=:soreness.
+Planned workout today: :planned_workout
+Training load mode requested: :training_load_mode
+Return a concise recommendation tailored to the user profile, with planned vs adjusted text, structured focus blocks, and a nutrition tip that feels realistic for the current state.

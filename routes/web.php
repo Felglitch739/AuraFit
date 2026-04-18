@@ -22,6 +22,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('nutrition', [DashboardController::class, 'nutrition'])->name('nutrition');
     Route::post('nutrition', [DashboardController::class, 'storeNutrition'])->name('nutrition.store');
 
+    Route::post('check-in/reduce-load', [DailyLogController::class, 'reduceLoad'])->name('check-in.reduce-load');
     Route::resource('check-in', DailyLogController::class)
         ->only(['index', 'store']);
 

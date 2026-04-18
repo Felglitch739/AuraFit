@@ -6,33 +6,24 @@ use App\Models\User;
 use App\Models\WeeklyPlan;
 use App\Services\Ai\OpenAiClientService;
 use App\Services\Ai\UserProfilePromptBuilder;
-use Throwable;
+use RuntimeException;
 
 class WeeklyPlanService
 {
     public function __construct(
         private readonly OpenAiClientService $openAiClient,
-        private readonly WeeklyPlanTemplateService $templateService,
         private readonly UserProfilePromptBuilder $profilePromptBuilder,
+        private readonly \App\Services\Ai\PromptTemplateService $promptTemplateService,
     ) {
-    }
-
-    public function generateMock(string $goal): array
-    {
-        return $this->templateService->build($goal);
     }
 
     public function generateUsingAiOrFallback(User $user): array
     {
         $goal = $this->resolveGoal($user);
 
-        try {
-            $result = $this->generateUsingAi($user, $goal);
+        $result = $this->generateUsingAi($user, $goal);
 
-            return $this->normalize($result, $goal);
-        } catch (Throwable) {
-            return $this->templateService->build($goal);
-        }
+        return $this->normalize($result, $goal);
     }
 
     public function saveForUser(User $user, array $planPayload): WeeklyPlan
@@ -50,51 +41,11 @@ class WeeklyPlanService
 
     private function generateUsingAi(User $user, string $goal): array
     {
-        $systemPrompt = <<<PROMPT
-You are an expert sports training planner.
-Return only valid JSON.
-Create a 7-day weekly plan for a real user with a fitness goal.
-Use this exact shape:
-{
-  "goal": "bulk|cut|maintain",
-  "days": [
-        {
-            "day": "Monday",
-            "focus": "...",
-            "durationMinutes": 45,
-            "intensity": "low|moderate|high",
-            "exercises": [
-                {"name": "...", "sets": 3, "reps": "8-10", "rest": "60s", "notes": "..."}
-            ],
-            "notes": "..."
-        }
-  ],
-  "notes": ["..."]
-}
-Rules:
-- Exactly 7 day entries from Monday to Sunday.
-- Use recovery-aware pacing based on activity level, age, and workout mode.
-- If workout_mode is custom, keep the structure familiar to the user and adapt load instead of replacing the split.
-- If the user lists sports, those sports must drive the weekly structure.
-- If sports_schedule is provided, map the main session of each day to that schedule; do not ignore it.
-- If sports_intensity is provided, align each day intensity with it (1=low, 2=moderate, 3=high) before adding accessories.
-- Do not force barbell or gym-centric templates when the user profile is primarily sport-specific (for example swimming, running, cycling, combat sports).
-- Use gym work only as optional support (strength, injury prevention, mobility) when it fits the sport demands.
-- Keep focus concise but specific enough for a frontend card.
-- Notes must contain exactly 2 short strings.
-- Match the plan to the user's activity level, preferred workout mode, sports background, and custom routine when available.
-- If the user is in custom workout mode, preserve their training identity while adapting load and structure.
-PROMPT;
+        $systemPrompt = $this->promptTemplateService->load('ai/weekly-plan.system.txt');
 
-        $userPrompt = implode("\n", [
-            $this->profilePromptBuilder->build($user),
-            'Weekly plan target goal: ' . $goal,
-            'Build a Monday-to-Sunday plan that matches the profile context and the target goal.',
-            'Use sports_practiced, sports_schedule, and sports_intensity as primary constraints for day-by-day planning.',
-            'If sports_schedule exists, each scheduled day must clearly reflect the listed sport session before any accessory training.',
-            'If sports_intensity exists, match day load to it (1=low, 2=moderate, 3=high) and avoid contradictory intensity labels.',
-            'When the athlete is not gym-first, avoid pure bodybuilding splits and write sessions in sport language (technique, intervals, conditioning, mobility, recovery).',
-            'For advanced or high-activity users, increase density and specificity; for lower activity users, reduce total load and simplify the split.',
+        $userPrompt = $this->promptTemplateService->render('ai/weekly-plan.user.txt', [
+            'profile_context' => $this->profilePromptBuilder->build($user),
+            'goal' => $goal,
         ]);
 
         return $this->openAiClient->chatJson($systemPrompt, $userPrompt);
@@ -105,18 +56,46 @@ PROMPT;
         $days = $payload['days'] ?? [];
 
         if (!is_array($days)) {
-            $days = [];
+            throw new RuntimeException('Weekly plan response is missing days.');
         }
 
         if (count($days) !== 7) {
-            return $this->templateService->build($goal);
+            throw new RuntimeException('Weekly plan response must contain exactly 7 days.');
         }
 
         $normalizedDays = [];
 
         foreach ($days as $day) {
             if (!is_array($day) || !is_string($day['day'] ?? null) || !is_string($day['focus'] ?? null)) {
-                continue;
+                throw new RuntimeException('Weekly plan day entry is invalid.');
+            }
+
+            $notes = $day['notes'] ?? [];
+            if (!is_array($notes) || count($notes) < 2) {
+                throw new RuntimeException('Weekly plan day notes must contain at least 2 items.');
+            }
+
+            $cleanNotes = [];
+
+            foreach ($notes as $note) {
+                if (!is_string($note) || trim($note) === '') {
+                    continue;
+                }
+
+                $cleanNotes[] = $note;
+            }
+
+            if (count($cleanNotes) < 2) {
+                throw new RuntimeException('Weekly plan day notes must contain at least 2 strings.');
+            }
+
+            $cleanExercises = [];
+            foreach (($day['exercises'] ?? []) as $exercise) {
+                if (!is_array($exercise) || !is_string($exercise['name'] ?? null) || trim($exercise['name']) === '') {
+                    throw new RuntimeException('Weekly plan exercises are invalid.');
+                }
+
+                $cleanExercises[] = $exercise;
             }
 
             $normalizedDays[] = [
@@ -126,22 +105,32 @@ PROMPT;
                 'intensity' => in_array($day['intensity'] ?? '', ['low', 'moderate', 'high'], true)
                     ? $day['intensity']
                     : 'moderate',
-                'exercises' => is_array($day['exercises'] ?? null) ? array_values($day['exercises']) : [],
-                'notes' => is_string($day['notes'] ?? null) ? $day['notes'] : '',
+                'exercises' => array_values($cleanExercises),
+                'notes' => array_values($cleanNotes),
             ];
         }
 
         if (count($normalizedDays) !== 7) {
-            return $this->templateService->build($goal);
+            throw new RuntimeException('Weekly plan response contains invalid days.');
         }
 
         $notes = $payload['notes'] ?? [];
 
         if (!is_array($notes) || count($notes) < 2) {
-            $notes = [
-                'Prioritize warm-up and cooldown every session.',
-                'Adjust intensity if readiness is low.',
-            ];
+            throw new RuntimeException('Weekly plan notes must contain at least 2 items.');
+        }
+
+        $cleanNotes = [];
+        foreach ($notes as $note) {
+            if (!is_string($note) || trim($note) === '') {
+                continue;
+            }
+
+            $cleanNotes[] = $note;
+        }
+
+        if (count($cleanNotes) < 2) {
+            throw new RuntimeException('Weekly plan notes must contain at least 2 strings.');
         }
 
         return [
@@ -149,7 +138,7 @@ PROMPT;
                 ? $payload['goal']
                 : $goal,
             'days' => $normalizedDays,
-            'notes' => array_values(array_slice($notes, 0, 2)),
+            'notes' => array_values(array_slice($cleanNotes, 0, 2)),
         ];
     }
 

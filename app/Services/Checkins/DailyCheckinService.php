@@ -8,13 +8,14 @@ use App\Models\User;
 use App\Services\Ai\OpenAiClientService;
 use App\Services\Ai\UserProfilePromptBuilder;
 use Carbon\Carbon;
-use Throwable;
+use RuntimeException;
 
 class DailyCheckinService
 {
     public function __construct(
         private readonly OpenAiClientService $openAiClient,
         private readonly UserProfilePromptBuilder $profilePromptBuilder,
+        private readonly \App\Services\Ai\PromptTemplateService $promptTemplateService,
     ) {
     }
 
@@ -28,40 +29,13 @@ class DailyCheckinService
         ]);
     }
 
-    public function buildMockResponse(DailyLog $dailyLog, ?string $planned = null): array
-    {
-        $plannedWorkout = $planned ?? 'Moderate full-body strength session';
-
-        return [
-            'readiness_score' => $this->calculateReadinessScore($dailyLog),
-            'message' => 'You are in a good spot to train today. Keep your effort controlled and focus on consistency.',
-            'planned' => $plannedWorkout,
-            'adjusted' => 'Slightly reduced load with controlled intensity and mobility work',
-            'workout_json' => [
-                'title' => 'Smart Muscle Focus',
-                'summary' => 'Focus on muscle groups and keep effort controlled.',
-                'exercises' => [
-                    ['name' => 'Push day (chest, shoulders, triceps) with light to moderate load'],
-                    ['name' => 'Scapular and upper-back activation (back, rear delts)'],
-                    ['name' => 'Core stability and breathing reset'],
-                ],
-            ],
-            'nutrition_tip' => 'Add a balanced post-workout meal with protein and complex carbs.',
-            'daily_log_id' => $dailyLog->id,
-        ];
-    }
-
-    public function generateRecommendationUsingAiOrFallback(DailyLog $dailyLog, User $user): array
+    public function generateRecommendationUsingAi(DailyLog $dailyLog, User $user, string $trainingLoadMode = 'normal'): array
     {
         $planned = $this->getPlannedWorkoutForToday($user);
 
-        try {
-            $aiPayload = $this->generateRecommendationUsingAi($dailyLog, $user, $planned);
+        $aiPayload = $this->generateRecommendationUsingAiPayload($dailyLog, $user, $planned, $trainingLoadMode);
 
-            return $this->normalizeRecommendationPayload($aiPayload, $dailyLog, $planned);
-        } catch (Throwable) {
-            return $this->buildMockResponse($dailyLog, $planned);
-        }
+        return $this->normalizeRecommendationPayload($aiPayload, $dailyLog, $planned, $trainingLoadMode);
     }
 
     public function saveRecommendation(DailyLog $dailyLog, array $payload): Recommendation
@@ -92,6 +66,7 @@ class DailyCheckinService
             'readiness_score' => $recommendation->readiness_score,
             'message' => $recommendation->workout_json['message'] ?? $this->buildReadinessMessage($recommendation->readiness_score),
             'workout_json' => $recommendation->workout_json,
+            'nutrition_tip' => $recommendation->nutrition_tip,
         ];
     }
 
@@ -124,80 +99,60 @@ class DailyCheckinService
         ];
     }
 
-    private function generateRecommendationUsingAi(DailyLog $dailyLog, User $user, string $plannedWorkout): array
+    private function generateRecommendationUsingAiPayload(DailyLog $dailyLog, User $user, string $plannedWorkout, string $trainingLoadMode): array
     {
-        $systemPrompt = <<<PROMPT
-You are an empathetic sports recovery and workout adaptation assistant.
-Return only valid JSON and use this exact shape:
-{
-  "readiness_score": 0,
-  "message": "...",
-  "planned": "...",
-  "adjusted": "...",
-  "workout_json": {
-    "title": "...",
-    "summary": "...",
-    "exercises": [
-      {"name": "...", "sets": 3, "reps": "8-10"}
-    ]
-  },
-  "nutrition_tip": "..."
-}
-Rules:
-- readiness_score must be integer from 0 to 100.
-- Keep message short, empathetic, and actionable.
-- planned must reflect the intended session from the user's weekly plan or custom routine.
-- adjusted must explain the adaptation in one clear line.
-- workout_json.exercises must contain 3 to 5 focus blocks centered on muscle groups or movement patterns, not a random exercise list.
-- nutrition_tip must be specific and practical, using food or hydration advice that fits the day's training load.
-- Adapt the recommendation to the user profile, current readiness drivers, and the planned workout.
-- Respect workout_mode: if custom, keep the user's training identity intact while adjusting intensity.
-- Use sports background and custom routine clues to make the output feel personal.
-- Use a lower readiness score when sleep is short, stress is high, or soreness is high; reward good recovery when all three are favorable.
-PROMPT;
+        $systemPrompt = $this->promptTemplateService->load('ai/checkin.system.txt');
 
-        $userPrompt = implode("\n", [
-            $this->profilePromptBuilder->build($user),
-            sprintf(
-                'Current check-in: sleep_hours=%.1f, stress_level=%d, soreness=%d.',
-                (float) $dailyLog->sleep_hours,
-                (int) $dailyLog->stress_level,
-                (int) $dailyLog->soreness,
-            ),
-            'Planned workout today: ' . $plannedWorkout,
-            'Return a concise recommendation tailored to the user profile, with planned vs adjusted text, structured focus blocks, and a nutrition tip that feels realistic for the current state.',
+        $userPrompt = $this->promptTemplateService->render('ai/checkin.user.txt', [
+            'profile_context' => $this->profilePromptBuilder->build($user),
+            'sleep_hours' => number_format((float) $dailyLog->sleep_hours, 1, '.', ''),
+            'stress_level' => (string) (int) $dailyLog->stress_level,
+            'soreness' => (string) (int) $dailyLog->soreness,
+            'planned_workout' => $plannedWorkout,
+            'training_load_mode' => $trainingLoadMode,
         ]);
 
         return $this->openAiClient->chatJson($systemPrompt, $userPrompt);
     }
 
-    private function normalizeRecommendationPayload(array $payload, DailyLog $dailyLog, string $plannedWorkout): array
+    private function normalizeRecommendationPayload(array $payload, DailyLog $dailyLog, string $plannedWorkout, string $trainingLoadMode): array
     {
-        $fallback = $this->buildMockResponse($dailyLog, $plannedWorkout);
+        if (!isset($payload['readiness_score'], $payload['message'], $payload['planned'], $payload['adjusted'], $payload['workout_json'], $payload['nutrition_tip'])) {
+            throw new RuntimeException('Recommendation response is missing required fields.');
+        }
 
-        $readiness = (int) ($payload['readiness_score'] ?? $fallback['readiness_score']);
-        $workout = is_array($payload['workout_json'] ?? null) ? $payload['workout_json'] : $fallback['workout_json'];
+        $readiness = (int) $payload['readiness_score'];
+        $workout = is_array($payload['workout_json']) ? $payload['workout_json'] : null;
+
+        if (!$workout) {
+            throw new RuntimeException('Recommendation workout JSON is invalid.');
+        }
+
         $message = trim((string) ($payload['message'] ?? ''));
 
         if ($message === '') {
-            $message = $fallback['message'];
+            throw new RuntimeException('Recommendation message is empty.');
+        }
+
+        if ($trainingLoadMode === 'reduced' && !str_contains(strtolower($message), 'not at 100%')) {
+            $message = 'You are not at 100% today, so the session has been reduced to protect recovery while keeping momentum.';
         }
 
         return [
             'readiness_score' => max(0, min(100, $readiness)),
             'message' => $message,
-            'planned' => (string) ($payload['planned'] ?? $plannedWorkout),
-            'adjusted' => (string) ($payload['adjusted'] ?? $fallback['adjusted']),
+            'planned' => (string) $payload['planned'],
+            'adjusted' => (string) $payload['adjusted'],
             'workout_json' => [
                 'title' => is_string($workout['title'] ?? null) && trim($workout['title']) !== ''
                     ? $workout['title']
-                    : 'Adaptive training focus',
+                    : throw new RuntimeException('Recommendation workout title is invalid.'),
                 'summary' => is_string($workout['summary'] ?? null) && trim($workout['summary']) !== ''
                     ? $workout['summary']
-                    : 'Training adjusted to your current recovery state.',
-                'exercises' => $this->normalizeFocusBlocks($workout['exercises'] ?? $fallback['workout_json']['exercises']),
+                    : throw new RuntimeException('Recommendation workout summary is invalid.'),
+                'exercises' => $this->normalizeFocusBlocks($workout['exercises'] ?? null),
             ],
-            'nutrition_tip' => (string) ($payload['nutrition_tip'] ?? $fallback['nutrition_tip']),
+            'nutrition_tip' => (string) $payload['nutrition_tip'],
             'daily_log_id' => $dailyLog->id,
         ];
     }
@@ -205,11 +160,7 @@ PROMPT;
     private function normalizeFocusBlocks(mixed $exercises): array
     {
         if (!is_array($exercises) || $exercises === []) {
-            return [
-                ['name' => 'Upper-body push emphasis', 'sets' => 3, 'reps' => '8-10', 'rest' => '60s', 'notes' => 'Controlled tempo'],
-                ['name' => 'Upper-back and scapular stability', 'sets' => 3, 'reps' => '10-12', 'rest' => '45s', 'notes' => 'Focus on posture'],
-                ['name' => 'Core and mobility reset', 'sets' => 2, 'reps' => '30-45s', 'rest' => '30s', 'notes' => 'Stay smooth'],
-            ];
+            throw new RuntimeException('Recommendation exercises are missing.');
         }
 
         $normalized = [];
@@ -228,7 +179,7 @@ PROMPT;
             }
 
             if (!is_array($exercise) || !is_string($exercise['name'] ?? null) || trim($exercise['name']) === '') {
-                continue;
+                throw new RuntimeException('Recommendation exercise entry is invalid.');
             }
 
             $normalized[] = [
@@ -240,7 +191,11 @@ PROMPT;
             ];
         }
 
-        return array_slice($normalized !== [] ? $normalized : $this->normalizeFocusBlocks([]), 0, 5);
+        if ($normalized === []) {
+            throw new RuntimeException('Recommendation exercises are invalid.');
+        }
+
+        return array_slice($normalized, 0, 5);
     }
 
     private function calculateReadinessScore(DailyLog $dailyLog): int

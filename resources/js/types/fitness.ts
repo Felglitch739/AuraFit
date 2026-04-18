@@ -48,6 +48,7 @@ export type NutritionMeal = {
     name: string;
     description: string;
     calories: number;
+    examples?: string[];
 };
 
 export type NutritionDay = {
