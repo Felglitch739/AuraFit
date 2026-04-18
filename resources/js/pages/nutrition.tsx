@@ -1,7 +1,23 @@
 import { Head } from '@inertiajs/react';
 import { AlertCircle, Apple, ChefHat } from 'lucide-react';
 
-export default function NutritionPage() {
+type NutritionPageProps = {
+    goal?: 'bulk' | 'cut' | 'maintain' | null;
+    nutritionTip?: string | null;
+    hasRecommendation?: boolean;
+};
+
+const goalLabelMap: Record<NonNullable<NutritionPageProps['goal']>, string> = {
+    bulk: 'Bulk',
+    cut: 'Cut',
+    maintain: 'Maintain',
+};
+
+export default function NutritionPage({
+    goal,
+    nutritionTip,
+    hasRecommendation,
+}: NutritionPageProps) {
     return (
         <>
             <Head title="Nutrition" />
@@ -24,9 +40,11 @@ export default function NutritionPage() {
                                 disabled
                                 className="w-full cursor-not-allowed rounded-lg border border-glass-border bg-background/60 p-3 text-foreground opacity-70"
                             >
-                                <option>Body recomposition</option>
-                                <option>Cut</option>
-                                <option>Bulk</option>
+                                <option>
+                                    {goal
+                                        ? goalLabelMap[goal]
+                                        : 'Body recomposition'}
+                                </option>
                             </select>
 
                             <label className="block pt-2 text-sm font-semibold text-muted-foreground">
@@ -56,12 +74,14 @@ export default function NutritionPage() {
                         <div className="flex h-full min-h-70 flex-col items-center justify-center text-center">
                             <Apple className="mb-4 h-16 w-16 text-muted-foreground" />
                             <h2 className="text-lg font-semibold text-foreground">
-                                Backend pending for nutrition
+                                {nutritionTip
+                                    ? 'Personalized nutrition tip available'
+                                    : 'Backend pending for nutrition'}
                             </h2>
                             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-                                The nutrition screen is styled and ready, but no
-                                backend endpoint exists yet for nutrition
-                                generation.
+                                {nutritionTip
+                                    ? nutritionTip
+                                    : 'The nutrition screen is styled and ready, but no backend endpoint exists yet for nutrition generation.'}
                             </p>
 
                             <div className="mt-5 rounded-xl border border-glass-border bg-background/50 px-4 py-3 text-left text-sm text-muted-foreground">
@@ -70,8 +90,9 @@ export default function NutritionPage() {
                                     Implemented now:
                                 </div>
                                 <p className="mt-1">
-                                    Check-in is fully connected to backend via
-                                    POST /api/checkin.
+                                    {hasRecommendation
+                                        ? 'This recommendation comes from your latest check-in stored in database.'
+                                        : 'Check-in is fully connected to backend via POST /api/checkin.'}
                                 </p>
                             </div>
                         </div>

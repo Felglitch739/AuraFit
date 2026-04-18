@@ -14,12 +14,10 @@ class DailyLogController extends Controller
     public function index(DailyCheckinService $dailyCheckinService): Response
     {
         $latestDailyLog = auth()->user()->dailyLogs()->latest()->first();
-
+        $latestRecommendation = $latestDailyLog?->recommendation;
 
         return Inertia::render('check-in', [
-            'checkinResult' => $latestDailyLog
-                ? $dailyCheckinService->buildMockResponse($latestDailyLog)
-                : null,
+            'checkinResult' => $dailyCheckinService->toCheckinResult($latestRecommendation),
             'checkinFormDefaults' => [
                 'sleep_hours' => $latestDailyLog?->sleep_hours ?? 7,
                 'soreness' => $latestDailyLog?->soreness ?? 3,
@@ -36,6 +34,11 @@ class DailyLogController extends Controller
         ];
 
         $dailyLog = $dailyCheckinService->createDailyLog($payload);
+        $recommendationPayload = $dailyCheckinService->generateRecommendationUsingAiOrFallback(
+            $dailyLog,
+            $request->user(),
+        );
+        $dailyCheckinService->saveRecommendation($dailyLog, $recommendationPayload);
 
         return redirect()->route('check-in.index');
     }
@@ -50,11 +53,16 @@ class DailyLogController extends Controller
         ]);
 
         $dailyLog = $dailyCheckinService->createDailyLog($validated);
+        $recommendationPayload = $dailyCheckinService->generateRecommendationUsingAiOrFallback(
+            $dailyLog,
+            $dailyLog->user,
+        );
+        $recommendation = $dailyCheckinService->saveRecommendation($dailyLog, $recommendationPayload);
 
         return response()->json([
             'message' => 'Daily check-in saved successfully.',
             'daily_log' => $dailyLog,
-            'mock_recommendation' => $dailyCheckinService->buildMockResponse($dailyLog),
+            'mock_recommendation' => $dailyCheckinService->toCheckinResult($recommendation),
         ], 201);
     }
 }

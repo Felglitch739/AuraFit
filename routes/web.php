@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DailyLogController;
 use App\Http\Controllers\WeeklyPlanController;
 use Illuminate\Support\Facades\Route;
@@ -10,8 +11,8 @@ Route::inertia('/', 'welcome', [
 ])->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
-    Route::inertia('nutrition', 'nutrition')->name('nutrition');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('nutrition', [DashboardController::class, 'nutrition'])->name('nutrition');
 
     Route::resource('check-in', DailyLogController::class)
         ->only(['index', 'store']);

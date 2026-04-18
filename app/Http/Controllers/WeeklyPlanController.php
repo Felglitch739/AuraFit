@@ -50,7 +50,7 @@ class WeeklyPlanController extends Controller
             ]);
         }
 
-        return redirect()->route('weekly-plans.show', $weeklyPlan);
+        return redirect()->route('dashboard');
     }
 
     public function show(Request $request, WeeklyPlan $weeklyPlan): JsonResponse
