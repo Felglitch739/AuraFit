@@ -60,8 +60,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="FronteraHacks">
-    <meta name="application-name" content="FronteraHacks">
+    <meta name="apple-mobile-web-app-title" content="Aurafit">
+    <meta name="application-name" content="Aurafit">
     <meta name="msapplication-starturl" content="/dashboard">
     <meta name="msapplication-config" content="/browserconfig.xml">
     <meta name="msapplication-TileColor" content="#4B5563">

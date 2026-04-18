@@ -1,4 +1,4 @@
-const CACHE_NAME = 'frontera-hacks-v1';
+const CACHE_NAME = 'aurafit-v1';
 const ASSETS_TO_CACHE = ['/', '/index.php', '/offline.html'];
 
 // Install event - cache assets
@@ -164,9 +164,7 @@ self.addEventListener('push', (event) => {
         },
     };
 
-    event.waitUntil(
-        self.registration.showNotification('FronteraHacks', options),
-    );
+    event.waitUntil(self.registration.showNotification('Aurafit', options));
 });
 
 // Background sync for offline actions

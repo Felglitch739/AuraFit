@@ -1,7 +1,7 @@
 {
-    "name": "FronteraHacks - Fitness Companion",
-    "short_name": "FronteraHacks",
-    "description": "Tu asistente de fitness con IA, check-ins, nutrición y planes de entrenamiento.",
+    "name": "Aurafit - AI Fitness Companion",
+    "short_name": "Aurafit",
+    "description": "Your AI-powered fitness assistant with check-ins, nutrition tracking, and personalized training plans.",
     "start_url": "/",
     "display": "standalone",
     "scope": "/",
@@ -92,9 +92,9 @@
     ],
     "shortcuts": [
         {
-            "name": "Hoy",
-            "short_name": "Hoy",
-            "description": "Ver tu día de hoy",
+            "name": "Today",
+            "short_name": "Today",
+            "description": "View your day",
             "url": "/dashboard",
             "icons": [
                 {
@@ -105,9 +105,9 @@
             ]
         },
         {
-            "name": "Nutrición",
-            "short_name": "Nutrición",
-            "description": "Registra tu nutrición",
+            "name": "Nutrition",
+            "short_name": "Nutrition",
+            "description": "Track your nutrition",
             "url": "/nutrition",
             "icons": [
                 {
@@ -120,7 +120,7 @@
         {
             "name": "Macros",
             "short_name": "Macros",
-            "description": "Track de macronutrientes",
+            "description": "Track macronutrients",
             "url": "/macros",
             "icons": [
                 {
