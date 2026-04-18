@@ -34,6 +34,9 @@
 
         body {
             min-height: 100dvh;
+            padding-top: env(safe-area-inset-top);
+            padding-right: env(safe-area-inset-right);
+            padding-left: env(safe-area-inset-left);
             padding-bottom: env(safe-area-inset-bottom);
         }
     </style>
