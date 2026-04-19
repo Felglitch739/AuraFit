@@ -276,7 +276,7 @@ export default function Dashboard({
 
                 <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
                     <article className="glass-panel relative overflow-hidden rounded-2xl p-6 xl:col-span-2">
-                        <div className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full bg-neon-pink/15 blur-2xl" />
+                        <div className="pointer-events-none absolute -top-5 -right-5 h-20 w-20 rounded-full bg-neon-pink/8 blur-xl sm:-top-8 sm:-right-8 sm:h-32 sm:w-32 sm:bg-neon-pink/15 sm:blur-2xl" />
 
                         <h2 className="mb-4 flex items-center gap-2 font-semibold text-muted-foreground">
                             <BatteryCharging className="h-5 w-5 text-neon-pink" />
