@@ -15,6 +15,32 @@ use Throwable;
 
 class WeeklyPlanController extends Controller
 {
+    public function preview(Request $request, WeeklyPlanService $weeklyPlanService): Response
+    {
+        $user = $request->user();
+        $weeklyPlan = $weeklyPlanService->getForUser($user);
+
+        if (!$weeklyPlan) {
+            try {
+                $weeklyPlan = DB::transaction(function () use ($user, $weeklyPlanService) {
+                    $planPayload = $weeklyPlanService->generateUsingAiOrFallback($user);
+
+                    return $weeklyPlanService->saveForUser($user, $planPayload);
+                });
+            } catch (Throwable) {
+                return Inertia::render('weekly-plan', [
+                    'weeklyPlan' => null,
+                    'generationError' => 'We could not generate your weekly plan right now. Please try again from Dashboard.',
+                ]);
+            }
+        }
+
+        return Inertia::render('weekly-plan', [
+            'weeklyPlan' => $weeklyPlan?->plan_json,
+            'generationError' => null,
+        ]);
+    }
+
     public function index(Request $request, WeeklyPlanService $weeklyPlanService): Response
     {
         $user = $request->user();

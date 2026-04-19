@@ -110,7 +110,10 @@ export default function Dashboard({
             <div className="space-y-6">
                 <section className="glass-panel rounded-2xl p-3 md:p-4">
                     <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto_1fr] md:items-stretch md:gap-3">
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:flex-wrap md:items-center md:gap-3">
+                        <nav
+                            className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:flex-wrap md:items-center md:gap-3"
+                            aria-label="Quick actions"
+                        >
                             {[
                                 {
                                     label: 'Setup',
@@ -126,11 +129,6 @@ export default function Dashboard({
                                     label: 'Nutrition',
                                     href: '/nutrition',
                                     icon: Apple,
-                                },
-                                {
-                                    label: 'Progress',
-                                    href: '/progress',
-                                    icon: BarChart3,
                                 },
                                 {
                                     label: 'Weekly Plan',
@@ -153,7 +151,7 @@ export default function Dashboard({
                                     </Link>
                                 );
                             })}
-                        </div>
+                        </nav>
 
                         <div className="hidden md:grid md:grid-cols-3 md:gap-2">
                             <div className="rounded-xl border border-glass-border bg-background/40 px-3 py-2">
@@ -186,17 +184,11 @@ export default function Dashboard({
 
                 {macroSummary ? (
                     <section className="glass-panel rounded-2xl p-6">
-                        <div className="mb-4 flex items-center justify-between gap-3">
+                        <div className="mb-4 flex items-center gap-3">
                             <h3 className="flex items-center gap-2 text-xl font-semibold text-foreground">
                                 <BarChart3 className="h-5 w-5 text-neon-blue" />
                                 Daily macro summary
                             </h3>
-                            <Link
-                                href="/progress"
-                                className="rounded-lg border border-glass-border bg-background/40 px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-neon-blue hover:text-neon-blue"
-                            >
-                                Open progress
-                            </Link>
                         </div>
 
                         <p className="text-sm text-muted-foreground">
@@ -613,10 +605,20 @@ export default function Dashboard({
                 </section>
 
                 <section className="glass-panel rounded-2xl p-6">
-                    <h3 className="mb-4 flex items-center gap-2 text-xl font-semibold text-foreground">
-                        <CalendarDays className="h-5 w-5 text-neon-blue" />
-                        Weekly map
-                    </h3>
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <h3 className="flex items-center gap-2 text-xl font-semibold text-foreground">
+                            <CalendarDays className="h-5 w-5 text-neon-blue" />
+                            Weekly map
+                        </h3>
+
+                        <Link
+                            href="/weekly-plan-preview"
+                            className="inline-flex items-center gap-2 rounded-lg border border-neon-blue/40 bg-neon-blue/10 px-3 py-1.5 text-xs font-semibold text-neon-blue transition hover:bg-neon-blue/20"
+                        >
+                            Open weekly plan
+                            <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                    </div>
 
                     {weeklyDays.length ? (
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -630,13 +632,13 @@ export default function Dashboard({
                                         : day.focus;
 
                                 return (
-                                    <div
+                                    <article
                                         key={day.day}
                                         className={[
-                                            'rounded-xl border p-4 transition-all',
+                                            'rounded-xl border p-4',
                                             isCurrent
-                                                ? 'border-neon-pink bg-neon-pink/10 shadow-[0_0_20px_rgba(217,70,239,0.15)]'
-                                                : 'border-glass-border bg-background/40',
+                                                ? 'border-neon-blue/35 bg-neon-blue/8 shadow-[0_0_14px_rgba(59,130,246,0.14)]'
+                                                : 'border-glass-border bg-background/35',
                                         ].join(' ')}
                                     >
                                         <div className="flex items-center justify-between gap-2">
@@ -644,7 +646,7 @@ export default function Dashboard({
                                                 {day.day}
                                             </p>
                                             {isCurrent ? (
-                                                <span className="rounded-full bg-neon-pink/20 px-2 py-0.5 text-xs text-neon-pink">
+                                                <span className="rounded-full bg-neon-blue/15 px-2 py-0.5 text-[11px] font-semibold text-neon-blue uppercase">
                                                     Today
                                                 </span>
                                             ) : null}
@@ -654,12 +656,11 @@ export default function Dashboard({
                                             {displayFocus}
                                         </p>
 
-                                        {isAcceptedDay ? (
-                                            <p className="mt-2 text-[11px] tracking-[0.24em] text-neon-blue uppercase">
-                                                Accepted in chat
-                                            </p>
-                                        ) : null}
-                                    </div>
+                                        <p className="mt-2 text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+                                            {day.intensity ?? 'moderate'} •{' '}
+                                            {day.durationMinutes ?? 45} min
+                                        </p>
+                                    </article>
                                 );
                             })}
                         </div>

@@ -30,6 +30,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'onboarding_custom_routine',
     'onboarding_completed_at',
     'password',
+    'training_environment',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
@@ -57,6 +58,7 @@ class User extends Authenticatable
             'onboarding_completed_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'training_environment' => 'string',
         ];
     }
 

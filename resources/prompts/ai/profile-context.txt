@@ -3,6 +3,7 @@ User profile context:
 - Fitness goal: :fitness_goal
 - Activity level: :activity_level
 - Workout mode: :workout_mode
+- Training environment: :training_environment
 - Training style: :training_style
 - Age: :age
 - Weight (kg): :weight_kg

@@ -17,13 +17,15 @@ class UserProfilePromptBuilder
         $fitnessGoal = $user->fitness_goal ?? 'unspecified';
         $activityLevel = $user->activity_level ?? 'unspecified';
         $workoutMode = $user->workout_mode ?? 'generate';
-        $trainingStyle = $this->deriveTrainingStyle($goal, $fitnessGoal, $workoutMode);
+        $trainingEnvironment = $this->normalizeTrainingEnvironment($user->training_environment);
+        $trainingStyle = $this->deriveTrainingStyle($goal, $fitnessGoal, $workoutMode, $trainingEnvironment);
 
         $profile = [
             'goal' => $goal,
             'activity_level' => $activityLevel,
             'fitness_goal' => $fitnessGoal,
             'workout_mode' => $workoutMode,
+            'training_environment' => $trainingEnvironment,
             'training_style' => $trainingStyle,
             'age' => $user->age ?? 'unspecified',
             'weight_kg' => $user->weight_kg ?? 'unspecified',
@@ -41,6 +43,7 @@ class UserProfilePromptBuilder
             'fitness_goal' => $profile['fitness_goal'],
             'activity_level' => $profile['activity_level'],
             'workout_mode' => $profile['workout_mode'],
+            'training_environment' => $profile['training_environment'],
             'training_style' => $profile['training_style'],
             'age' => $profile['age'],
             'weight_kg' => $profile['weight_kg'],
@@ -63,7 +66,7 @@ class UserProfilePromptBuilder
         return 'maintain';
     }
 
-    private function deriveTrainingStyle(string $goal, string $fitnessGoal, string $workoutMode): string
+    private function deriveTrainingStyle(string $goal, string $fitnessGoal, string $workoutMode, string $trainingEnvironment): string
     {
         $style = match ($goal) {
             'bulk' => 'hypertrophy-focused progression with compound lifts',
@@ -75,6 +78,12 @@ class UserProfilePromptBuilder
             $style .= '; preserve user-defined structure before adding adaptations';
         }
 
+        if ($trainingEnvironment === 'bodyweight') {
+            $style .= '; prioritize bodyweight, mobility, and minimal-equipment substitutions';
+        } else {
+            $style .= '; gym access allows barbells, dumbbells, cables, and machines';
+        }
+
         if ($fitnessGoal === 'recomposition') {
             $style .= '; bias toward balanced strength and moderate conditioning';
         }
@@ -84,6 +93,15 @@ class UserProfilePromptBuilder
         }
 
         return $style;
+    }
+
+    private function normalizeTrainingEnvironment(mixed $trainingEnvironment): string
+    {
+        if (is_string($trainingEnvironment) && in_array($trainingEnvironment, ['gym', 'bodyweight'], true)) {
+            return $trainingEnvironment;
+        }
+
+        return 'gym';
     }
 
     private function formatSportsSchedule(mixed $sportsSchedule): string

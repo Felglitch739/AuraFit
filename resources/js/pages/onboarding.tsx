@@ -28,6 +28,7 @@ import SetupLoading from '@/components/fitness/SetupLoading';
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'advanced';
 type FitnessGoal = 'strength' | 'definition' | 'recomposition' | 'maintenance';
 type WorkoutMode = 'generate' | 'custom';
+type TrainingEnvironment = 'gym' | 'bodyweight';
 type WeekDay =
     | 'Monday'
     | 'Tuesday'
@@ -47,6 +48,7 @@ type OnboardingData = {
     activity_level: ActivityLevel;
     fitness_goal: FitnessGoal;
     workout_mode: WorkoutMode;
+    training_environment: TrainingEnvironment;
     age: number | '';
     weight_value: number | '';
     weight_unit: 'kg' | 'lb';
@@ -298,6 +300,7 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
         activity_level: initialData?.activity_level ?? 'moderate',
         fitness_goal: initialData?.fitness_goal ?? 'recomposition',
         workout_mode: initialData?.workout_mode ?? 'generate',
+        training_environment: initialData?.training_environment ?? 'gym',
         age: initialData?.age ?? '',
         weight_value: initialData?.weight_value ?? '',
         weight_unit: initialData?.weight_unit ?? 'kg',
@@ -326,6 +329,7 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
         activity_level: data.activity_level,
         fitness_goal: data.fitness_goal,
         workout_mode: data.workout_mode,
+        training_environment: data.training_environment,
         age: data.age,
         weight_value: data.weight_value,
         weight_unit: data.weight_unit,
@@ -350,6 +354,15 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
 
     const handleWorkoutModeChange = (mode: WorkoutMode) => {
         setData((prev) => ({ ...prev, workout_mode: mode }));
+    };
+
+    const handleTrainingEnvironmentChange = (
+        environment: TrainingEnvironment,
+    ) => {
+        setData((prev) => ({
+            ...prev,
+            training_environment: environment,
+        }));
     };
 
     const handleCustomRoutineChange = (day: string, value: string) => {
@@ -484,6 +497,8 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
             activity_level: data.activity_level,
             fitness_goal: data.fitness_goal,
             workout_mode: data.workout_mode,
+            training_environment: data.training_environment,
+            training_environment: data.training_environment,
             age: data.age,
             weight_value: data.weight_value,
             weight_unit: data.weight_unit,
@@ -1071,17 +1086,105 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                                 <div className="animate-in space-y-6 duration-300 fade-in">
                                     <div>
                                         <h2 className="mb-2 font-['Orbitron',sans-serif] text-2xl font-bold text-foreground">
-                                            How Do You Want to Train?
+                                            Where Will You Train?
                                         </h2>
                                         <p className="text-sm text-muted-foreground">
-                                            Choose how you'd like to set up your
-                                            weekly routine
+                                            Tell us if the plan should assume a
+                                            gym setup or no equipment.
                                         </p>
                                     </div>
+
+                                    <fieldset className="space-y-4">
+                                        <legend className="sr-only">
+                                            Training environment
+                                        </legend>
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleTrainingEnvironmentChange(
+                                                        'gym',
+                                                    )
+                                                }
+                                                className={[
+                                                    'group relative overflow-hidden rounded-xl border-2 p-5 text-left transition-all duration-200',
+                                                    data.training_environment ===
+                                                    'gym'
+                                                        ? 'border-neon-blue bg-neon-blue/10 shadow-[0_0_25px_rgba(59,130,246,0.32)]'
+                                                        : 'border-glass-border bg-background/40 hover:border-neon-blue/50',
+                                                ].join(' ')}
+                                            >
+                                                <div className="relative flex items-start gap-4">
+                                                    <div className="mt-1 rounded-lg bg-neon-blue/20 p-3">
+                                                        <Dumbbell className="h-6 w-6 text-neon-blue" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h3 className="font-semibold text-foreground">
+                                                            Gym
+                                                        </h3>
+                                                        <p className="mt-1 text-sm text-muted-foreground">
+                                                            Use machines,
+                                                            barbells, dumbbells,
+                                                            cables, and full gym
+                                                            options.
+                                                        </p>
+                                                    </div>
+                                                    {data.training_environment ===
+                                                        'gym' && (
+                                                        <div className="mt-1 rounded-full bg-neon-blue p-1">
+                                                            <Sparkles className="h-4 w-4 text-white" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleTrainingEnvironmentChange(
+                                                        'bodyweight',
+                                                    )
+                                                }
+                                                className={[
+                                                    'group relative overflow-hidden rounded-xl border-2 p-5 text-left transition-all duration-200',
+                                                    data.training_environment ===
+                                                    'bodyweight'
+                                                        ? 'border-neon-pink bg-neon-pink/10 shadow-[0_0_25px_rgba(217,70,239,0.32)]'
+                                                        : 'border-glass-border bg-background/40 hover:border-neon-pink/50',
+                                                ].join(' ')}
+                                            >
+                                                <div className="relative flex items-start gap-4">
+                                                    <div className="mt-1 rounded-lg bg-neon-pink/20 p-3">
+                                                        <PersonStanding className="h-6 w-6 text-neon-pink" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h3 className="font-semibold text-foreground">
+                                                            No equipment
+                                                        </h3>
+                                                        <p className="mt-1 text-sm text-muted-foreground">
+                                                            Build the week with
+                                                            bodyweight,
+                                                            mobility,
+                                                            conditioning, and
+                                                            minimal-equipment
+                                                            options.
+                                                        </p>
+                                                    </div>
+                                                    {data.training_environment ===
+                                                        'bodyweight' && (
+                                                        <div className="mt-1 rounded-full bg-neon-pink p-1">
+                                                            <Sparkles className="h-4 w-4 text-white" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </fieldset>
 
                                     <div className="space-y-4">
                                         {/* AI Generate Option */}
                                         <button
+                                            type="button"
                                             onClick={() =>
                                                 handleWorkoutModeChange(
                                                     'generate',
@@ -1123,6 +1226,7 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
 
                                         {/* Custom Routine Option */}
                                         <button
+                                            type="button"
                                             onClick={() =>
                                                 handleWorkoutModeChange(
                                                     'custom',
@@ -1235,7 +1339,11 @@ export default function OnboardingPage({ initialData }: OnboardingPageProps) {
                                                 will generate a weekly
                                                 muscle-group split with
                                                 intensity guidance for your
-                                                current readiness.
+                                                current readiness and
+                                                {data.training_environment ===
+                                                'gym'
+                                                    ? ' gym-based exercise options.'
+                                                    : ' no-equipment exercise options.'}
                                             </p>
                                         </div>
 

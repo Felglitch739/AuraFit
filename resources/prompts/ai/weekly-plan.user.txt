@@ -1,8 +1,23 @@
 :profile_context
 Weekly plan target goal: :goal
+Nutrition context: :nutrition_context
+Existing weekly plan context: :existing_plan_context
+Latest recommendation context: :recommendation_context
 Build a Monday-to-Sunday plan that matches the profile context and the target goal.
+Infer available training days from the user's weekly pattern and choose exactly one split that fits the schedule and experience level.
+1-3 days/week should be Full Body.
+4 days/week should be Upper / Lower / Rest / Upper / Lower.
+5 days/week should be Push / Pull / Legs / Upper / Lower.
+6 days/week should be Push / Pull / Legs / Rest / Push / Pull / Legs.
+Do not mix incompatible muscle groups on the same non-Full Body day.
 Use sports_practiced, sports_schedule, and sports_intensity as primary constraints for day-by-day planning.
 If sports_schedule exists, each scheduled day must clearly reflect the listed sport session before any accessory training.
 If sports_intensity exists, match day load to it (1=low, 2=moderate, 3=high) and avoid contradictory intensity labels.
+If an existing weekly plan context is provided, preserve what is working and only adjust structure where needed.
+Use nutrition context (calorie target, macros, hydration, and current nutrition tip) to align training load and recovery days.
 When the athlete is not gym-first, avoid pure bodybuilding splits and write sessions in sport language (technique, intervals, conditioning, mobility, recovery).
 For advanced or high-activity users, increase density and specificity; for lower activity users, reduce total load and simplify the split.
+For hypertrophy-oriented days, avoid short exercise lists; return complete sessions with realistic volume and clear muscle-group balance.
+If custom routine suggests Push/Pull/Legs, preserve that split and distribute exercises by muscle priority.
+If the user is tired, recovering, or has joint issues, prefer dumbbells, machines, bands, or bodyweight variations over barbell-dominant work.
+Example of valid push distribution: 3 chest exercises, 3 shoulder exercises, and 2 triceps exercises.

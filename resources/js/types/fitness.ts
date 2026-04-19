@@ -5,7 +5,12 @@ export type WorkoutExercise = {
     sets?: string | number;
     reps?: string;
     rest?: string;
+    muscleGroup?: string;
+    purpose?: string;
+    technique_points?: string[];
+    techniquePoints?: string[];
     notes?: string;
+    description?: string;
 };
 
 export type WeeklyPlanDay = {
@@ -14,7 +19,7 @@ export type WeeklyPlanDay = {
     durationMinutes?: number;
     intensity?: 'low' | 'moderate' | 'high';
     exercises?: WorkoutExercise[];
-    notes?: string;
+    notes?: string[];
 };
 
 export type WeeklyPlanData = {

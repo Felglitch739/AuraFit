@@ -31,7 +31,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('weekly-plan-preview', fn() => Inertia::render('weekly-plan'))->name('weekly-plan.preview');
+    Route::get('weekly-plan-preview', [WeeklyPlanController::class, 'preview'])->name('weekly-plan.preview');
 
     Route::get('chat', [ChatController::class, 'index'])->name('chat.index');
     Route::post('chat/reply', [ChatController::class, 'reply'])->name('chat.reply');

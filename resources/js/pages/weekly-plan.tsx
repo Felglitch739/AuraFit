@@ -1,18 +1,24 @@
 import { Head } from '@inertiajs/react';
 import WeeklyPlanView, {
-    mockPlan,
     type WeeklyPlan,
 } from '@/components/fitness/WeeklyPlan';
 
 type WeeklyPlanPageProps = {
     weeklyPlan?: WeeklyPlan | null;
+    generationError?: string | null;
 };
 
-export default function WeeklyPlanPage({ weeklyPlan }: WeeklyPlanPageProps) {
+export default function WeeklyPlanPage({
+    weeklyPlan,
+    generationError,
+}: WeeklyPlanPageProps) {
     return (
         <>
             <Head title="Weekly Plan" />
-            <WeeklyPlanView plan={weeklyPlan ?? mockPlan} />
+            <WeeklyPlanView
+                plan={weeklyPlan}
+                generationError={generationError}
+            />
         </>
     );
 }
