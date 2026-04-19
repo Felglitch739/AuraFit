@@ -139,8 +139,8 @@
     /* Dark Theme Adjustments for dashboard look */
     --neon-pink: oklch(0.7 0.3 320);
     --neon-blue: oklch(0.7 0.3 250);
-    --glass-panel: oklch(1 1 1 / 0.04);
-    --glass-border: oklch(1 1 1 / 0.1);
+    --glass-panel: oklch(40.062% 0.05049 319.715 / 0.068);
+    --glass-border: oklch(63.828% 0.2845 317.988 / 0);
     --sidebar-primary: oklch(0.985 0 0);
     --sidebar-primary-foreground: oklch(0.985 0 0);
     --sidebar-accent: oklch(0.269 0 0);
