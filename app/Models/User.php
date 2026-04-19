@@ -15,6 +15,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 #[Fillable([
     'name',
     'email',
+    'is_admin',
     'goal',
     'activity_level',
     'fitness_goal',
@@ -45,6 +46,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_admin' => 'boolean',
             'age' => 'integer',
             'weight_kg' => 'float',
             'height_cm' => 'float',
@@ -86,5 +88,10 @@ class User extends Authenticatable
     public function pushSubscriptions(): HasMany
     {
         return $this->hasMany(PushSubscription::class);
+    }
+
+    public function apiUsageLogs(): HasMany
+    {
+        return $this->hasMany(ApiUsageLog::class);
     }
 }

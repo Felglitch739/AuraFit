@@ -7,6 +7,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\PlanUpdateController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\WeeklyPlanController;
+use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 use Inertia\Inertia;
@@ -29,6 +30,8 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('weekly-plan-preview', fn() => Inertia::render('weekly-plan'))->name('weekly-plan.preview');
+
     Route::get('chat', [ChatController::class, 'index'])->name('chat.index');
     Route::post('chat/reply', [ChatController::class, 'reply'])->name('chat.reply');
     Route::post('api/coach/chat', [ChatController::class, 'reply'])->name('api.coach.chat');
@@ -51,6 +54,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::resource('weekly-plans', WeeklyPlanController::class)
         ->only(['index', 'store', 'show']);
+});
+
+Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+    Route::get('admin', [AdminController::class, 'index'])->name('admin.index');
 });
 
 require __DIR__ . '/settings.php';

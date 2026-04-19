@@ -110,7 +110,7 @@ export default function Dashboard({
             <div className="space-y-6">
                 <section className="glass-panel rounded-2xl p-3 md:p-4">
                     <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto_1fr] md:items-stretch md:gap-3">
-                        <div className="grid grid-cols-4 gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:flex-wrap md:items-center md:gap-3">
                             {[
                                 {
                                     label: 'Setup',
@@ -131,6 +131,11 @@ export default function Dashboard({
                                     label: 'Progress',
                                     href: '/progress',
                                     icon: BarChart3,
+                                },
+                                {
+                                    label: 'Weekly Plan',
+                                    href: '/weekly-plan-preview',
+                                    icon: CalendarDays,
                                 },
                             ].map((item) => {
                                 const Icon = item.icon;

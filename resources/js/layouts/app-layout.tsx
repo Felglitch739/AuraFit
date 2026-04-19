@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
     BarChart3,
@@ -23,6 +23,10 @@ export default function AppLayout({
     children: React.ReactNode;
 }) {
     const { isCurrentUrl } = useCurrentUrl();
+    const { auth } = usePage<{
+        auth: { user?: { is_admin?: boolean } | null };
+    }>().props;
+    const isAdmin = Boolean(auth?.user?.is_admin);
     const [notificationsEnabled, setNotificationsEnabled] =
         useState<boolean>(false);
     const [notificationsLoading, setNotificationsLoading] =
@@ -93,6 +97,15 @@ export default function AppLayout({
             label: 'Chat',
             icon: MessageCircle,
         },
+        ...(isAdmin
+            ? [
+                  {
+                      href: '/admin',
+                      label: 'Admin',
+                      icon: BarChart3,
+                  },
+              ]
+            : []),
     ] as const;
 
     const mobileNavItems = [
@@ -117,6 +130,17 @@ export default function AppLayout({
             href: '/chat',
             soon: false,
         },
+        ...(isAdmin
+            ? [
+                  {
+                      key: 'admin',
+                      label: 'Admin',
+                      icon: BarChart3,
+                      href: '/admin',
+                      soon: false,
+                  },
+              ]
+            : []),
     ] as const;
 
     return (
