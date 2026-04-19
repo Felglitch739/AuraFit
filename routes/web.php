@@ -6,6 +6,7 @@ use App\Http\Controllers\MacroCounterController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\PlanUpdateController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\AdminPushNotificationController;
 use App\Http\Controllers\WeeklyPlanController;
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
@@ -58,6 +59,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('admin', [AdminController::class, 'index'])->name('admin.index');
+    Route::post('admin/push-notifications', [AdminPushNotificationController::class, 'store'])
+        ->name('admin.push-notifications.store');
 });
 
 require __DIR__ . '/settings.php';

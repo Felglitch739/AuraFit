@@ -1,4 +1,6 @@
-import { Head } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
+import { BellRing, Send } from 'lucide-react';
+import { toast } from 'sonner';
 
 type AdminUser = {
     id: number;
@@ -38,18 +40,81 @@ const usd = new Intl.NumberFormat('en-US', {
 });
 
 export default function AdminIndex({ users, usage }: AdminPageProps) {
+    const pushForm = useForm<{ type: 'daily' | 'smart' | 'workout' }>({
+        type: 'daily',
+    });
+
+    const dispatchPush = (type: 'daily' | 'smart' | 'workout') => {
+        pushForm.setData('type', type);
+        pushForm.post('/admin/push-notifications', {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success(`Push dispatched: ${type}`);
+            },
+            onError: () => {
+                toast.error('Could not dispatch push notification.');
+            },
+        });
+    };
+
     return (
         <>
             <Head title="Admin" />
 
             <div className="space-y-6">
                 <section className="glass-panel rounded-2xl p-4 md:p-6">
-                    <h1 className="text-2xl font-semibold text-foreground">
-                        Admin dashboard
-                    </h1>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                        Track user base and API usage costs.
-                    </p>
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <h1 className="text-2xl font-semibold text-foreground">
+                                Admin dashboard
+                            </h1>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                                Track user base, API usage costs, and dispatch
+                                push notifications.
+                            </p>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-3 md:min-w-105">
+                            {[
+                                {
+                                    type: 'daily' as const,
+                                    label: 'Daily Reminder',
+                                    description: 'Time to do your check-in',
+                                },
+                                {
+                                    type: 'smart' as const,
+                                    label: 'Smart Reminder',
+                                    description: "We haven't seen you today.",
+                                },
+                                {
+                                    type: 'workout' as const,
+                                    label: 'Workout Ready',
+                                    description:
+                                        'Your personalized workout is ready',
+                                },
+                            ].map((item) => (
+                                <button
+                                    key={item.type}
+                                    type="button"
+                                    onClick={() => dispatchPush(item.type)}
+                                    disabled={pushForm.processing}
+                                    className="rounded-xl border border-glass-border bg-background/40 px-3 py-3 text-left transition hover:border-neon-blue hover:text-neon-blue disabled:opacity-60"
+                                >
+                                    <div className="flex items-start gap-2">
+                                        <BellRing className="mt-0.5 h-4 w-4" />
+                                        <div>
+                                            <p className="text-sm font-semibold text-foreground">
+                                                {item.label}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {item.description}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
                         <div className="rounded-xl border border-glass-border bg-background/40 p-4">
