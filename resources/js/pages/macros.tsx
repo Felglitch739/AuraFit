@@ -7,6 +7,7 @@ import {
     Upload,
     Utensils,
 } from 'lucide-react';
+import { useRef } from 'react';
 import { toast } from 'sonner';
 import NutritionLoading from '@/components/fitness/NutritionLoading';
 
@@ -43,6 +44,9 @@ export default function MacrosPage({
     analysis,
     entriesToday = [],
 }: MacrosPageProps) {
+    const cameraInputRef = useRef<HTMLInputElement | null>(null);
+    const galleryInputRef = useRef<HTMLInputElement | null>(null);
+
     const analyzeForm = useForm<{
         photo: File | null;
         meal_label: string;
@@ -52,6 +56,27 @@ export default function MacrosPage({
     });
 
     const saveForm = useForm({});
+
+    const handlePhotoSelected = async (file: File | null) => {
+        if (!file) {
+            analyzeForm.setData('photo', null);
+            return;
+        }
+
+        try {
+            const compressed = await compressImage(file);
+            analyzeForm.setData('photo', compressed);
+
+            if (compressed.size < file.size) {
+                const savedKb = Math.round(
+                    (file.size - compressed.size) / 1024,
+                );
+                toast.success(`Image optimized (${savedKb} KB saved).`);
+            }
+        } catch {
+            analyzeForm.setData('photo', file);
+        }
+    };
 
     const compressImage = async (file: File): Promise<File> => {
         const MAX_DIMENSION = 1280;
@@ -199,48 +224,62 @@ export default function MacrosPage({
                                 />
                             </div>
 
-                            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-neon-blue/60 bg-neon-blue/10 px-4 py-3 text-sm font-semibold text-neon-blue transition hover:bg-neon-blue/20">
-                                <Upload className="h-4 w-4" />
-                                {analyzeForm.data.photo
-                                    ? analyzeForm.data.photo.name
-                                    : 'Select photo'}
+                            <div className="grid gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        cameraInputRef.current?.click()
+                                    }
+                                    className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-neon-pink/60 bg-neon-pink/10 px-4 py-3 text-sm font-semibold text-neon-pink transition hover:bg-neon-pink/20"
+                                >
+                                    <Camera className="h-4 w-4" />
+                                    Take photo
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        galleryInputRef.current?.click()
+                                    }
+                                    className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-neon-blue/60 bg-neon-blue/10 px-4 py-3 text-sm font-semibold text-neon-blue transition hover:bg-neon-blue/20"
+                                >
+                                    <Upload className="h-4 w-4" />
+                                    Select photo
+                                </button>
+
+                                {analyzeForm.data.photo ? (
+                                    <p className="text-center text-xs text-muted-foreground">
+                                        {analyzeForm.data.photo.name}
+                                    </p>
+                                ) : null}
+
                                 <input
+                                    ref={cameraInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={async (event) => {
+                                        await handlePhotoSelected(
+                                            event.target.files?.[0] ?? null,
+                                        );
+                                        event.currentTarget.value = '';
+                                    }}
+                                />
+
+                                <input
+                                    ref={galleryInputRef}
                                     type="file"
                                     accept="image/*"
                                     className="hidden"
                                     onChange={async (event) => {
-                                        const file =
-                                            event.target.files?.[0] ?? null;
-
-                                        if (!file) {
-                                            analyzeForm.setData('photo', null);
-                                            return;
-                                        }
-
-                                        try {
-                                            const compressed =
-                                                await compressImage(file);
-                                            analyzeForm.setData(
-                                                'photo',
-                                                compressed,
-                                            );
-
-                                            if (compressed.size < file.size) {
-                                                const savedKb = Math.round(
-                                                    (file.size -
-                                                        compressed.size) /
-                                                        1024,
-                                                );
-                                                toast.success(
-                                                    `Image optimized (${savedKb} KB saved).`,
-                                                );
-                                            }
-                                        } catch {
-                                            analyzeForm.setData('photo', file);
-                                        }
+                                        await handlePhotoSelected(
+                                            event.target.files?.[0] ?? null,
+                                        );
+                                        event.currentTarget.value = '';
                                     }}
                                 />
-                            </label>
+                            </div>
                         </div>
 
                         <button
