@@ -1,7 +1,8 @@
 import { Head } from '@inertiajs/react';
-import WeeklyPlanView, {
+import {
+    WeeklyPlanView,
     type WeeklyPlan,
-} from '@/components/fitness/WeeklyPlan';
+} from '@/components/fitness/weekly-plan';
 
 type WeeklyPlanPageProps = {
     weeklyPlan?: WeeklyPlan | null;
@@ -16,7 +17,7 @@ export default function WeeklyPlanPage({
         <>
             <Head title="Weekly Plan" />
             <WeeklyPlanView
-                plan={weeklyPlan}
+                plan={weeklyPlan ?? undefined}
                 generationError={generationError}
             />
         </>

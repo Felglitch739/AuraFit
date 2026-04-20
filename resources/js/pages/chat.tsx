@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import Chat from '@/components/fitness/Chat';
+import { Chat } from '@/components/fitness/chat';
 import type {
     ChatContextViewModel,
     ChatMessageViewModel,

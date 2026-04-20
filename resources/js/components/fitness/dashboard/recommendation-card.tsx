@@ -7,7 +7,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import type { RecommendationData } from '@/types/fitness';
-import WorkoutExerciseList from '@/components/fitness/workout-exercise-list';
+import WorkoutExerciseList from './workout-exercise-list';
 
 type RecommendationCardProps = {
     recommendation?: RecommendationData | null;
