@@ -2,17 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\Generation\GenerateDailyRecommendationJob;
+use App\Jobs\Generation\RegenerateNutritionPlanDayJob;
+use App\Jobs\Generation\RegenerateWeeklyPlanDayJob;
 use App\Http\Requests\DailyLogRequest;
 use App\Services\Checkins\DailyCheckinService;
-use App\Services\Nutrition\NutritionPlanService;
-use App\Services\WeeklyPlans\WeeklyPlanService;
+use App\Services\Generation\PlanGenerationStateService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
-use Throwable;
 
 class DailyLogController extends Controller
 {
@@ -31,36 +33,39 @@ class DailyLogController extends Controller
         ]);
     }
 
-    public function store(DailyLogRequest $request, DailyCheckinService $dailyCheckinService): RedirectResponse
-    {
-        try {
-            DB::transaction(function () use ($request, $dailyCheckinService): void {
-                $payload = [
-                    ...$request->validated(),
-                    'user_id' => $request->user()->id,
-                ];
+    public function store(
+        DailyLogRequest $request,
+        DailyCheckinService $dailyCheckinService,
+        PlanGenerationStateService $generationStateService,
+    ): RedirectResponse {
+        $dailyLog = DB::transaction(function () use ($request, $dailyCheckinService) {
+            $payload = [
+                ...$request->validated(),
+                'user_id' => $request->user()->id,
+            ];
 
-                $dailyLog = $dailyCheckinService->createDailyLog($payload);
-                $recommendationPayload = $dailyCheckinService->generateRecommendationUsingAi(
-                    $dailyLog,
-                    $request->user(),
-                );
-                $dailyCheckinService->saveRecommendation($dailyLog, $recommendationPayload);
-            });
-        } catch (Throwable) {
-            return back()->withErrors([
-                'check_in' => 'We could not generate your recommendation right now. No fallback content was created.',
-            ])->withInput();
-        }
+            return $dailyCheckinService->createDailyLog($payload);
+        });
+
+        $generationStateService->queue(
+            $request->user(),
+            'check_in',
+            'Generating your recommendation in the background.',
+        );
+
+        Bus::dispatch(new GenerateDailyRecommendationJob($dailyLog->id, $request->user()->id));
+
+        Inertia::flash('toast', [
+            'type' => 'info',
+            'message' => 'Your check-in is being analyzed in the background. The page will refresh when the recommendation is ready.',
+        ]);
 
         return redirect()->route('check-in.index');
     }
 
     public function reduceLoad(
         Request $request,
-        DailyCheckinService $dailyCheckinService,
-        NutritionPlanService $nutritionPlanService,
-        WeeklyPlanService $weeklyPlanService,
+        PlanGenerationStateService $generationStateService,
     ): RedirectResponse {
         $user = $request->user();
         $latestDailyLog = $user->dailyLogs()->latest()->first();
@@ -70,24 +75,23 @@ class DailyLogController extends Controller
             return redirect()->route('check-in.index');
         }
 
-        try {
-            DB::transaction(function () use ($dailyCheckinService, $nutritionPlanService, $weeklyPlanService, $latestDailyLog, $user, $currentDay, ): void {
-                $recommendationPayload = $dailyCheckinService->generateRecommendationUsingAi(
-                    $latestDailyLog,
-                    $user,
-                    'reduced',
-                );
-                $recommendation = $dailyCheckinService->saveRecommendation($latestDailyLog, $recommendationPayload);
+        $generationStateService->queue(
+            $user,
+            'recovery_plan',
+            'Rebuilding today\'s recommendation, nutrition, and workout structure in the background.',
+        );
 
-                $nutritionPlanService->regenerateCurrentDay($user, $latestDailyLog, $recommendation, $currentDay);
-                $weeklyPlanService->regenerateCurrentDayFromRecommendation($user, $recommendation, $currentDay);
-            });
-        } catch (Throwable) {
-            return back()->withErrors([
-                'check_in' => 'We could not regenerate your reduced-load day right now (recommendation, nutrition, and workout structure). No fallback content was created.',
-            ]);
-        }
+        Bus::chain([
+            new GenerateDailyRecommendationJob($latestDailyLog->id, $user->id, 'reduced', false),
+            new RegenerateNutritionPlanDayJob($user->id, $latestDailyLog->id, false),
+            new RegenerateWeeklyPlanDayJob($user->id, $latestDailyLog->id, true),
+        ])->dispatch();
 
-        return redirect()->route('check-in.index')->with('success', 'Today\'s reduced-load recommendation, nutrition, and workout structure were regenerated.');
+        Inertia::flash('toast', [
+            'type' => 'info',
+            'message' => 'Reduced-load regeneration started. We will refresh the page when the updated plan is ready.',
+        ]);
+
+        return redirect()->route('check-in.index');
     }
 }

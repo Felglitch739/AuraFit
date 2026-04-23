@@ -98,12 +98,21 @@ export type NutritionPlanData = {
     nutritionTip: string;
 };
 
+export type GenerationState = {
+    status: 'idle' | 'queued' | 'processing' | 'failed';
+    kind?: string | null;
+    message?: string | null;
+    startedAt?: string | null;
+    failedAt?: string | null;
+};
+
 export type DashboardViewModel = {
     weeklyPlan?: WeeklyPlanData | null;
     dailyCheckIn?: DailyCheckInValues | null;
     recommendation?: RecommendationData | null;
     nutritionPlan?: NutritionPlanData | null;
     currentDayLabel?: string;
+    generationState?: GenerationState | null;
     dashboardSummary?: {
         headline: string;
         description: string;

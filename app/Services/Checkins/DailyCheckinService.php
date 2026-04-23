@@ -34,7 +34,7 @@ class DailyCheckinService
         $planned = $this->getPlannedWorkoutForToday($user);
 
         $aiPayload = $this->generateRecommendationUsingAiPayload($dailyLog, $user, $planned, $trainingLoadMode);
-    
+
 
         return $this->normalizeRecommendationPayload($aiPayload, $dailyLog, $planned, $trainingLoadMode);
     }
@@ -113,7 +113,7 @@ class DailyCheckinService
             'training_load_mode' => $trainingLoadMode,
         ]);
 
-        return $this->openAiClient->chatJson($systemPrompt, $userPrompt);
+        return $this->openAiClient->chatJson($systemPrompt, $userPrompt, $user->id);
     }
 
     private function normalizeRecommendationPayload(array $payload, DailyLog $dailyLog, string $plannedWorkout, string $trainingLoadMode): array

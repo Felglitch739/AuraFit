@@ -119,7 +119,7 @@ class NutritionPlanService
                 : 'No recommendation has been generated yet.',
         ]);
 
-        return $this->openAiClient->chatJson($systemPrompt, $userPrompt);
+        return $this->openAiClient->chatJson($systemPrompt, $userPrompt, $user->id);
     }
 
     private function normalize(array $payload, User $user, ?DailyLog $dailyLog, ?Recommendation $recommendation, string $goal): array
