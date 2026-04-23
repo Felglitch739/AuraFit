@@ -7,7 +7,9 @@ use App\Models\User;
 use App\Models\WeeklyPlan;
 use App\Services\Ai\OpenAiClientService;
 use App\Services\Ai\UserProfilePromptBuilder;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 class WeeklyPlanService
 {
@@ -20,24 +22,62 @@ class WeeklyPlanService
 
     public function generateUsingAiOrFallback(User $user): array
     {
+        $startedAt = microtime(true);
         $goal = $this->resolveGoal($user);
         $currentPlan = $this->getForUser($user)?->plan_json;
         $nutritionPlan = $user->nutritionPlan?->nutrition_json;
         $latestRecommendation = $user->dailyLogs()->latest()->first()?->recommendation;
 
-        $result = $this->generateUsingAi(
-            $user,
-            $goal,
-            is_array($currentPlan) ? $currentPlan : null,
-            is_array($nutritionPlan) ? $nutritionPlan : null,
-            $latestRecommendation,
-        );
+        Log::debug('WeeklyPlanService generation started.', [
+            'user_id' => $user->id,
+            'goal' => $goal,
+            'has_current_plan' => is_array($currentPlan),
+            'has_nutrition_plan' => is_array($nutritionPlan),
+            'has_latest_recommendation' => $latestRecommendation !== null,
+        ]);
 
-        return $this->normalize(
-            $result,
-            $goal,
-            is_array($nutritionPlan) ? $nutritionPlan : null,
-        );
+        try {
+            $result = $this->generateUsingAi(
+                $user,
+                $goal,
+                is_array($currentPlan) ? $currentPlan : null,
+                is_array($nutritionPlan) ? $nutritionPlan : null,
+                $latestRecommendation,
+            );
+
+            Log::debug('WeeklyPlanService AI payload received.', [
+                'user_id' => $user->id,
+                'top_level_keys' => array_keys($result),
+                'days_count_raw' => is_array($result['days'] ?? null) ? count($result['days']) : null,
+            ]);
+
+            $normalized = $this->normalize(
+                $result,
+                $goal,
+                is_array($nutritionPlan) ? $nutritionPlan : null,
+            );
+
+            Log::debug('WeeklyPlanService generation completed.', [
+                'user_id' => $user->id,
+                'days_count_normalized' => is_array($normalized['days'] ?? null) ? count($normalized['days']) : null,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+
+            return $normalized;
+        } catch (Throwable $exception) {
+            Log::error('WeeklyPlanService generation failed.', [
+                'user_id' => $user->id,
+                'goal' => $goal,
+                'has_current_plan' => is_array($currentPlan),
+                'has_nutrition_plan' => is_array($nutritionPlan),
+                'has_latest_recommendation' => $latestRecommendation !== null,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'exception_class' => get_class($exception),
+                'message' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
+        }
     }
 
     public function saveForUser(User $user, array $planPayload): WeeklyPlan
@@ -121,6 +161,8 @@ class WeeklyPlanService
         ?array $nutritionPlan = null,
         ?Recommendation $latestRecommendation = null,
     ): array {
+        $startedAt = microtime(true);
+
         $systemPrompt = $this->promptTemplateService->load('ai/weekly-plan.system.txt');
 
         $userPrompt = $this->promptTemplateService->render('ai/weekly-plan.user.txt', [
@@ -131,18 +173,48 @@ class WeeklyPlanService
             'recommendation_context' => $this->buildRecommendationContext($latestRecommendation),
         ]);
 
-        return $this->openAiClient->chatJson($systemPrompt, $userPrompt);
+        Log::debug('WeeklyPlanService sending AI request.', [
+            'user_id' => $user->id,
+            'goal' => $goal,
+            'system_prompt_length' => strlen($systemPrompt),
+            'user_prompt_length' => strlen($userPrompt),
+            'has_existing_plan_context' => $existingPlan !== null,
+            'has_nutrition_context' => $nutritionPlan !== null,
+            'has_recommendation_context' => $latestRecommendation !== null,
+        ]);
+
+        $response = $this->openAiClient->chatJson($systemPrompt, $userPrompt, $user->id);
+
+        Log::debug('WeeklyPlanService AI response received.', [
+            'user_id' => $user->id,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'response_keys' => array_keys($response),
+            'days_count_raw' => is_array($response['days'] ?? null) ? count($response['days']) : null,
+        ]);
+
+        return $response;
     }
 
     private function normalize(array $payload, string $goal, ?array $nutritionPlan = null): array
     {
         $days = $payload['days'] ?? [];
 
+        Log::debug('WeeklyPlanService normalize started.', [
+            'goal' => $goal,
+            'payload_keys' => array_keys($payload),
+            'days_count_raw' => is_array($days) ? count($days) : null,
+            'has_nutrition_plan' => $nutritionPlan !== null,
+        ]);
+
         if (!is_array($days)) {
+            Log::warning('WeeklyPlanService normalize failed: days missing or invalid type.');
             throw new RuntimeException('Weekly plan response is missing days.');
         }
 
         if (count($days) !== 7) {
+            Log::warning('WeeklyPlanService normalize failed: days count is not 7.', [
+                'days_count_raw' => count($days),
+            ]);
             throw new RuntimeException('Weekly plan response must contain exactly 7 days.');
         }
 
@@ -150,6 +222,9 @@ class WeeklyPlanService
 
         foreach ($days as $day) {
             if (!is_array($day) || !is_string($day['day'] ?? null) || !is_string($day['focus'] ?? null)) {
+                Log::warning('WeeklyPlanService normalize failed: invalid day row.', [
+                    'day_row' => $day,
+                ]);
                 throw new RuntimeException('Weekly plan day entry is invalid.');
             }
 
@@ -161,6 +236,10 @@ class WeeklyPlanService
             }
 
             if (!is_array($notes)) {
+                Log::warning('WeeklyPlanService normalize failed: notes are invalid for day.', [
+                    'day' => $dayName,
+                    'notes_type' => gettype($notes),
+                ]);
                 throw new RuntimeException(sprintf('Weekly plan day notes are invalid for %s.', $dayName));
             }
 
@@ -179,6 +258,10 @@ class WeeklyPlanService
             }
 
             if (count($cleanNotes) < 2) {
+                Log::warning('WeeklyPlanService normalize failed: insufficient notes for day.', [
+                    'day' => $dayName,
+                    'notes_count' => count($cleanNotes),
+                ]);
                 throw new RuntimeException(sprintf('Weekly plan day notes must contain at least 2 strings for %s.', $dayName));
             }
 
@@ -203,6 +286,9 @@ class WeeklyPlanService
         }
 
         if (count($normalizedDays) !== 7) {
+            Log::warning('WeeklyPlanService normalize failed: normalized day count is invalid.', [
+                'normalized_days_count' => count($normalizedDays),
+            ]);
             throw new RuntimeException('Weekly plan response contains invalid days.');
         }
 
@@ -213,10 +299,16 @@ class WeeklyPlanService
         }
 
         if (!is_array($notes)) {
+            Log::warning('WeeklyPlanService normalize failed: plan notes are invalid type.', [
+                'notes_type' => gettype($notes),
+            ]);
             throw new RuntimeException('Weekly plan notes are invalid.');
         }
 
         if (count($notes) < 2) {
+            Log::warning('WeeklyPlanService normalize failed: insufficient top-level notes.', [
+                'notes_count_raw' => count($notes),
+            ]);
             throw new RuntimeException('Weekly plan notes must contain at least 2 items.');
         }
 
@@ -230,6 +322,9 @@ class WeeklyPlanService
         }
 
         if (count($cleanNotes) < 2) {
+            Log::warning('WeeklyPlanService normalize failed: insufficient clean top-level notes.', [
+                'clean_notes_count' => count($cleanNotes),
+            ]);
             throw new RuntimeException('Weekly plan notes must contain at least 2 strings.');
         }
 
@@ -249,6 +344,12 @@ class WeeklyPlanService
             $nutritionPlan,
             $goal,
         );
+
+        Log::debug('WeeklyPlanService normalize completed.', [
+            'normalized_days_count' => count($normalizedDays),
+            'planned_workout_keys' => array_keys($plannedWorkout),
+            'planned_nutrition_keys' => array_keys($plannedNutrition),
+        ]);
 
         return [
             'goal' => in_array(($payload['goal'] ?? ''), ['bulk', 'cut', 'maintain'], true)

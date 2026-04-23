@@ -8,7 +8,15 @@ const setupSteps = [
     'Your empathetic coach is almost ready.',
 ] as const;
 
-export default function SetupLoading() {
+type SetupLoadingProps = {
+    title?: string;
+    steps?: readonly string[];
+};
+
+export default function SetupLoading({
+    title = 'Building Your AuraFit Core',
+    steps = setupSteps,
+}: SetupLoadingProps = {}) {
     const [stepIndex, setStepIndex] = useState(0);
     const [isStepVisible, setIsStepVisible] = useState(true);
     const [progress, setProgress] = useState(20);
@@ -28,10 +36,11 @@ export default function SetupLoading() {
         };
     }, []);
 
-    const targetProgress = useMemo(
-        () => ((stepIndex + 1) / setupSteps.length) * 100,
-        [stepIndex],
-    );
+    const targetProgress = useMemo(() => {
+        const totalSteps = steps.length || 1;
+
+        return ((stepIndex + 1) / totalSteps) * 100;
+    }, [stepIndex, steps]);
 
     useEffect(() => {
         const interval = window.setInterval(() => {
@@ -82,7 +91,7 @@ export default function SetupLoading() {
                             : 'translate-y-1 opacity-0',
                     ].join(' ')}
                 >
-                    {setupSteps[stepIndex]}
+                    {steps[stepIndex] ?? steps[0] ?? 'Preparing your plan...'}
                 </p>
             </div>
         </section>

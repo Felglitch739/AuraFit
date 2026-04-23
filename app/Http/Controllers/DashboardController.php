@@ -4,16 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\NutritionPlanRequest;
 use App\Models\FoodEntry;
+use App\Jobs\Generation\GenerateNutritionPlanJob;
+use App\Services\Generation\PlanGenerationStateService;
 use App\Services\Checkins\DailyCheckinService;
 use App\Services\Nutrition\NutritionPlanService;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use Throwable;
 
 class DashboardController extends Controller
 {
@@ -21,6 +22,7 @@ class DashboardController extends Controller
         Request $request,
         DailyCheckinService $dailyCheckinService,
         NutritionPlanService $nutritionPlanService,
+        PlanGenerationStateService $generationStateService,
     ): Response {
         $user = $request->user();
         $weeklyPlan = $user->weeklyPlan?->plan_json;
@@ -93,6 +95,7 @@ class DashboardController extends Controller
             'macroSummary' => $macroSummary,
             'currentDayLabel' => Carbon::now()->englishDayOfWeek,
             'dashboardSummary' => $dashboardSummary,
+            'generationState' => $generationStateService->toViewModel($user),
         ]);
     }
 
@@ -117,7 +120,6 @@ class DashboardController extends Controller
 
     public function storeNutrition(
         NutritionPlanRequest $request,
-        NutritionPlanService $nutritionPlanService,
     ): JsonResponse|RedirectResponse {
         $user = $request->user();
 
@@ -128,33 +130,16 @@ class DashboardController extends Controller
         $latestDailyLog = $user->dailyLogs()->latest()->first();
         $latestRecommendation = $latestDailyLog?->recommendation;
 
-        try {
-            $nutritionPlan = DB::transaction(function () use ($user, $nutritionPlanService, $latestDailyLog, $latestRecommendation, ) {
-                $nutritionPayload = $nutritionPlanService->generateUsingAiOrFallback($user, $latestDailyLog, $latestRecommendation);
+        Bus::dispatch(new GenerateNutritionPlanJob($user->id, $latestDailyLog?->id, $latestRecommendation?->id));
 
-                return $nutritionPlanService->saveForUser(
-                    $user,
-                    $nutritionPayload,
-                    $latestDailyLog,
-                    $latestRecommendation,
-                );
-            });
-        } catch (Throwable) {
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'message' => 'We could not generate the nutrition plan right now. No fallback content was created.',
-                ], 500);
-            }
-
-            return back()->withErrors([
-                'nutrition_plan' => 'We could not generate the nutrition plan right now. No fallback content was created.',
-            ]);
-        }
+        Inertia::flash('toast', [
+            'type' => 'info',
+            'message' => 'Nutrition plan generation started. The dashboard will refresh when it is ready.',
+        ]);
 
         if ($request->wantsJson()) {
             return response()->json([
-                'message' => 'Nutrition plan generated successfully.',
-                'data' => $nutritionPlan->nutrition_json,
+                'message' => 'Nutrition plan generation started.',
             ]);
         }
 

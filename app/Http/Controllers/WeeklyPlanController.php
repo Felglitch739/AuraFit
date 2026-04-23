@@ -2,37 +2,36 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\Generation\GenerateWeeklyPlanJob;
 use App\Http\Requests\WeeklyPlanRequest;
 use App\Models\WeeklyPlan;
+use App\Services\Generation\PlanGenerationStateService;
 use App\Services\WeeklyPlans\WeeklyPlanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Bus;
 use Inertia\Inertia;
 use Inertia\Response;
-use Throwable;
 
 class WeeklyPlanController extends Controller
 {
-    public function preview(Request $request, WeeklyPlanService $weeklyPlanService): Response
-    {
+    public function preview(
+        Request $request,
+        WeeklyPlanService $weeklyPlanService,
+        PlanGenerationStateService $generationStateService,
+    ): Response {
         $user = $request->user();
         $weeklyPlan = $weeklyPlanService->getForUser($user);
 
-        if (!$weeklyPlan) {
-            try {
-                $weeklyPlan = DB::transaction(function () use ($user, $weeklyPlanService) {
-                    $planPayload = $weeklyPlanService->generateUsingAiOrFallback($user);
+        if (!$weeklyPlan && in_array($user->generation_status, [PlanGenerationStateService::STATUS_IDLE, PlanGenerationStateService::STATUS_FAILED], true)) {
+            $generationStateService->queue(
+                $user,
+                'weekly_plan',
+                'Generating your weekly plan in the background.',
+            );
 
-                    return $weeklyPlanService->saveForUser($user, $planPayload);
-                });
-            } catch (Throwable) {
-                return Inertia::render('weekly-plan', [
-                    'weeklyPlan' => null,
-                    'generationError' => 'We could not generate your weekly plan right now. Please try again from Dashboard.',
-                ]);
-            }
+            Bus::dispatch(new GenerateWeeklyPlanJob($user->id));
         }
 
         return Inertia::render('weekly-plan', [
@@ -52,7 +51,7 @@ class WeeklyPlanController extends Controller
         ]);
     }
 
-    public function store(WeeklyPlanRequest $request, WeeklyPlanService $weeklyPlanService): RedirectResponse|JsonResponse
+    public function store(WeeklyPlanRequest $request): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $goal = $request->string('goal')->toString();
@@ -65,28 +64,16 @@ class WeeklyPlanController extends Controller
             $user->update(['goal' => $goal]);
         }
 
-        try {
-            $weeklyPlan = DB::transaction(function () use ($user, $weeklyPlanService) {
-                $planPayload = $weeklyPlanService->generateUsingAiOrFallback($user);
+        Bus::dispatch(new GenerateWeeklyPlanJob($user->id));
 
-                return $weeklyPlanService->saveForUser($user, $planPayload);
-            });
-        } catch (Throwable) {
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'message' => 'We could not generate the weekly plan right now. No fallback content was created.',
-                ], 500);
-            }
-
-            return back()->withErrors([
-                'weekly_plan' => 'We could not generate the weekly plan right now. No fallback content was created.',
-            ]);
-        }
+        Inertia::flash('toast', [
+            'type' => 'info',
+            'message' => 'Weekly plan generation started. The dashboard will refresh when it is ready.',
+        ]);
 
         if ($request->wantsJson()) {
             return response()->json([
-                'message' => 'Weekly plan generated successfully.',
-                'data' => $weeklyPlan->plan_json,
+                'message' => 'Weekly plan generation started.',
             ]);
         }
 

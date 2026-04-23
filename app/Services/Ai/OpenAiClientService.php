@@ -7,6 +7,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class OpenAiClientService
@@ -15,7 +16,7 @@ class OpenAiClientService
      * @throws ConnectionException
      * @throws RequestException
      */
-    public function chatJson(string $systemPrompt, string $userPrompt): array
+    public function chatJson(string $systemPrompt, string $userPrompt, ?int $userId = null): array
     {
         $payload = [
             'model' => config('services.openai.model', 'gpt-5'),
@@ -35,14 +36,14 @@ class OpenAiClientService
             ],
         ];
 
-        return $this->performChatCompletion($payload, ['mode' => 'text']);
+        return $this->performChatCompletion($payload, ['mode' => 'text'], $userId);
     }
 
     /**
      * @throws ConnectionException
      * @throws RequestException
      */
-    public function chatJsonWithImage(string $systemPrompt, string $userPrompt, string $imageDataUrl): array
+    public function chatJsonWithImage(string $systemPrompt, string $userPrompt, string $imageDataUrl, ?int $userId = null): array
     {
         $payload = [
             'model' => config('services.openai.model', 'gpt-5'),
@@ -74,7 +75,7 @@ class OpenAiClientService
             ],
         ];
 
-        return $this->performChatCompletion($payload, ['mode' => 'image']);
+        return $this->performChatCompletion($payload, ['mode' => 'image'], $userId);
     }
 
     /**
@@ -83,7 +84,7 @@ class OpenAiClientService
      * @throws ConnectionException
      * @throws RequestException
      */
-    private function performChatCompletion(array $payload, array $meta = []): array
+    private function performChatCompletion(array $payload, array $meta = [], ?int $userId = null): array
     {
         $apiKey = (string) config('services.openai.api_key');
 
@@ -92,16 +93,35 @@ class OpenAiClientService
         }
 
         $model = (string) ($payload['model'] ?? config('services.openai.model', 'gpt-5'));
+        $baseUrl = (string) config('services.openai.base_url', 'https://api.openai.com/v1');
+        $timeout = (int) config('services.openai.timeout', 30);
+
+        Log::debug('OpenAiClientService request started.', [
+            'user_id' => $userId,
+            'model' => $model,
+            'base_url' => $baseUrl,
+            'timeout_seconds' => $timeout,
+            'mode' => $meta['mode'] ?? null,
+        ]);
 
         try {
-            $response = Http::baseUrl((string) config('services.openai.base_url', 'https://api.openai.com/v1'))
-                ->timeout((int) config('services.openai.timeout', 30))
+            $response = Http::baseUrl($baseUrl)
+                ->timeout($timeout)
                 ->withToken($apiKey)
                 ->acceptJson()
                 ->asJson()
                 ->post('/chat/completions', $payload)
                 ->throw();
         } catch (ConnectionException $exception) {
+            Log::error('OpenAiClientService connection failure.', [
+                'user_id' => $userId,
+                'model' => $model,
+                'base_url' => $baseUrl,
+                'timeout_seconds' => $timeout,
+                'mode' => $meta['mode'] ?? null,
+                'message' => $exception->getMessage(),
+            ]);
+
             $this->logUsage(
                 model: $model,
                 response: null,
@@ -109,11 +129,22 @@ class OpenAiClientService
                 errorCode: 'connection_error',
                 errorMessage: $exception->getMessage(),
                 meta: $meta,
+                userId: $userId,
             );
 
             throw $exception;
         } catch (RequestException $exception) {
             $response = $exception->response;
+
+            Log::error('OpenAiClientService request failure.', [
+                'user_id' => $userId,
+                'model' => $model,
+                'base_url' => $baseUrl,
+                'timeout_seconds' => $timeout,
+                'mode' => $meta['mode'] ?? null,
+                'http_status' => $response?->status(),
+                'message' => (string) data_get($response?->json() ?? [], 'error.message', $exception->getMessage()),
+            ]);
 
             $this->logUsage(
                 model: $model,
@@ -122,10 +153,20 @@ class OpenAiClientService
                 errorCode: (string) data_get($response?->json() ?? [], 'error.code', ''),
                 errorMessage: (string) data_get($response?->json() ?? [], 'error.message', $exception->getMessage()),
                 meta: $meta,
+                userId: $userId,
             );
 
             throw $exception;
         }
+
+        Log::debug('OpenAiClientService request succeeded.', [
+            'user_id' => $userId,
+            'model' => $model,
+            'base_url' => $baseUrl,
+            'timeout_seconds' => $timeout,
+            'mode' => $meta['mode'] ?? null,
+            'http_status' => $response->status(),
+        ]);
 
         $this->logUsage(
             model: $model,
@@ -134,6 +175,7 @@ class OpenAiClientService
             errorCode: null,
             errorMessage: null,
             meta: $meta,
+            userId: $userId,
         );
 
         $content = data_get($response->json(), 'choices.0.message.content');
@@ -161,6 +203,7 @@ class OpenAiClientService
         ?string $errorCode,
         ?string $errorMessage,
         array $meta = [],
+        ?int $userId = null,
     ): void {
         $usage = $response?->json('usage') ?? [];
         $promptTokens = max(0, (int) data_get($usage, 'prompt_tokens', 0));
@@ -171,7 +214,7 @@ class OpenAiClientService
         $estimatedCost = (($promptTokens / 1000) * $inputPer1k) + (($completionTokens / 1000) * $outputPer1k);
 
         ApiUsageLog::query()->create([
-            'user_id' => auth()->id(),
+            'user_id' => $userId ?? auth()->id(),
             'provider' => 'openai',
             'service' => 'chat.completions',
             'model' => $model,
