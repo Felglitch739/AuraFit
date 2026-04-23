@@ -301,12 +301,12 @@ export default function AppLayout({
 
             <div className="relative z-10 min-h-screen pb-22 md:pb-0 md:pl-24">
                 <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-3 py-4 md:px-8 md:py-8">
-                    <header className="glass-panel mb-4 flex items-center justify-between gap-3 rounded-2xl border border-glass-border bg-glass-panel px-3 py-2.5 shadow-[0_0_30px_var(--color-neon-pink)/10] backdrop-blur-xl md:mb-6 md:px-4 md:py-3">
-                        <div className="flex items-center gap-3">
+                    <header className="glass-panel mb-4 flex flex-col items-stretch gap-3 rounded-2xl border border-glass-border bg-glass-panel px-3 py-2.5 shadow-[0_0_30px_var(--color-neon-pink)/10] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between md:mb-6 md:px-4 md:py-3">
+                        <div className="flex min-w-0 items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-neon-pink/30 bg-linear-to-br from-neon-pink/25 via-neon-blue/20 to-background shadow-[0_0_20px_var(--color-neon-pink)/20]">
                                 <Zap className="h-4 w-4 text-neon-pink" />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                                 <p className="font-['Orbitron',sans-serif] text-xs tracking-[0.3em] text-neon-blue/80 uppercase">
                                     AuraFit
                                 </p>
@@ -316,10 +316,10 @@ export default function AppLayout({
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                             <Link
                                 href={edit()}
-                                className="inline-flex items-center gap-2 rounded-lg border border-glass-border bg-background/40 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-neon-blue hover:text-neon-blue"
+                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-glass-border bg-background/40 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-neon-blue hover:text-neon-blue sm:flex-none"
                             >
                                 <Settings className="h-4 w-4" />
                                 Settings
@@ -331,7 +331,7 @@ export default function AppLayout({
                                 disabled={
                                     notificationsEnabled || notificationsLoading
                                 }
-                                className="inline-flex items-center gap-2 rounded-lg border border-glass-border bg-background/40 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-neon-blue hover:text-neon-blue disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-glass-border bg-background/40 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-neon-blue hover:text-neon-blue disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
                             >
                                 <Bell className="h-4 w-4" />
                                 {notificationsEnabled
@@ -344,7 +344,7 @@ export default function AppLayout({
                             <button
                                 type="button"
                                 onClick={() => router.post('/logout')}
-                                className="inline-flex items-center gap-2 rounded-lg border border-glass-border bg-background/40 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-neon-pink hover:text-neon-pink"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-glass-border bg-background/40 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-neon-pink hover:text-neon-pink sm:w-auto"
                             >
                                 <LogOut className="h-4 w-4" />
                                 Log out
